@@ -26,6 +26,13 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = []
 
+IS_RENDER_ENV = config('RENDER', default=False, cast=bool)
+
+if IS_RENDER_ENV:
+    # Obtém o nome do anfitrião externo do seu serviço no Render
+    RENDER_EXTERNAL_HOSTNAME = config('RENDER_EXTERNAL_HOSTNAME', default=None)
+    if RENDER_EXTERNAL_HOSTNAME:
+        ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
 # Application definition
 
