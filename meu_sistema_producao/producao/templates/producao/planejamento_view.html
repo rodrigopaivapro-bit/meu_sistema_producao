@@ -1,0 +1,698 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}PROPLAN SG{% endblock %}
+
+{% block styles %}
+    <style>
+        .dragging { opacity: 0.5; transform: rotate(5deg); }
+        .drop-zone { min-height: 40px; transition: all 0.2s ease; }
+        .drop-zone.drag-over { background-color: rgba(59, 130, 246, 0.2); border: 2px dashed #3b82f6; }
+        .production-card { cursor: grab; transition: all 0.2s ease; }
+        .production-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+        .production-card:active { cursor: grabbing; }
+        .drag-over { background-color: rgba(59, 130, 246, 0.1); }
+        .time-grid-container {
+            max-height: 70vh;
+            overflow-y: auto;
+            position: relative;
+            transform: translateZ(0);
+        }
+        .time-header-grid {
+            display: grid;
+            grid-template-columns: 100px repeat(7, 1fr); /* 100px para a hora, 7 colunas para os dias */
+            background: #2d3748;
+            border-bottom: 2px solid #4b5563;
+        }
+        .time-row {
+            display: grid;
+            grid-template-columns: 100px repeat(7, 1fr);
+            height: 40px;
+            border-bottom: 1px solid #4b5563;
+        }
+        .hourly-slot { 
+            border-right: 1px solid #4b5563;
+        }
+        .day-slot {
+        }
+        .scheduled-op-card {
+            position: absolute; 
+            z-index: 10;
+            margin: 2px; 
+        }
+        
+        /* Correção para posicionamento correto dos cartões */
+        .time-grid-container {
+            max-height: 70vh;
+            overflow-y: auto;
+            position: relative;
+            transform: translateZ(0);
+        }
+        
+        /* Garante que os cartões agendados fiquem posicionados corretamente */
+        .cartao-agendado {
+            position: absolute !important;
+            z-index: 10;
+            pointer-events: auto;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s ease;
+        }
+        
+        .cartao-agendado:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+        .time-label {
+            background: #2d3748;
+            color: #a0aec0;
+            padding: 4px;
+            text-align: right;
+            border-right: 1px solid #4b5563;
+        }
+        .machine-selector button.selected {
+            background-color: #3b82f6;
+            color: white;
+            transform: scale(1.05);
+        }
+        .toast-notification {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #2d3748;
+            color: #38a169;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: 1px solid #38a169;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.5s, bottom 0.5s;
+        }
+        .toast-notification.show {
+            opacity: 1;
+            bottom: 40px;
+        }
+
+    </style>
+    {% endblock %}
+
+    {% block content %}
+    <div class="min-h-screen p-6">
+        <!-- Header -->
+        <div class="bg-gray-800 rounded-xl shadow-2xl p-6 mb-6 border border-gray-700 flex justify-between items-center">
+    
+            <div>
+                <h1 class="text-4xl font-bold text-blue-400 mb-2">Planejamento de Produção</h1>
+                <p class="text-gray-300 text-lg" id="currentWeek">Carregando semana...</p>
+            </div>
+        
+            <div class="flex items-center gap-4"> 
+                
+                <a href="{% url 'menu' %}" 
+                   class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                    <i class="fas fa-home"></i> 
+                    <span>Voltar ao Menu</span>
+                </a>
+        
+                <button id="prevWeekBtn" class="bg-gray-700 hover:bg-gray-600 text-gray-100 font-bold py-2 px-4 rounded-lg transition-colors">← Semana Anterior</button>
+                <button id="nextWeekBtn" class="bg-gray-700 hover:bg-gray-600 text-gray-100 font-bold py-2 px-4 rounded-lg transition-colors">Próxima Semana →</button>
+                
+            </div> </div>
+
+        <!-- Seleção de Máquinas -->
+        <div class="mb-6 bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+            <h2 class="text-xl font-semibold text-gray-300 mb-4">Selecione uma Máquina para Planejar:</h2>
+            <div class="flex gap-4 machine-selector">
+                {% for maquina in maquinas %}
+                    <button class="bg-gray-700 hover:bg-blue-600 text-gray-100 font-bold py-2 px-4 rounded-lg transition-colors" data-maquina-id="{{ maquina.id }}" data-maquina-capacidade="{{ maquina.capacity_liters }}">
+                        {{ maquina.number }} ({{ maquina.capacity_liters }}L)
+                    </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="flex gap-6 h-full">
+            <!-- Painel de Ordens de Produção -->
+            <div class="w-80 bg-gray-800 rounded-xl shadow-2xl p-6 border border-gray-700 flex flex-col">
+                <h2 class="text-2xl font-semibold text-blue-400 mb-6">Ordens de Produção</h2>
+                <div class="flex-1 space-y-4 overflow-y-auto" id="productionOrders">
+                    {% for op_data in ordens_disponiveis %}
+                        <div class="production-card bg-blue-100 border-l-4 border-blue-500 p-4 rounded-lg shadow-lg"
+                             draggable="true"
+                             data-op-id="{{ op_data.op.id }}"
+                             data-pn-id="{{ op_data.op.pn.id }}"
+                             data-pn-capacidade="{{ op_data.op.pn.capacity_liters }}"
+                             data-duration="{{ op_data.tempo_producao_horas }}"
+                             style="height: {{ op_data.altura_card|floatformat:"0" }}px;">
+                            <div class="font-semibold text-blue-800 text-lg">OP-{{ op_data.op.id }}</div>
+                            <div class="text-sm text-blue-600">{{ op_data.op.pn.pn_code }} - {{ op_data.op.quantity }} und.</div>
+                            <div class="text-xs text-blue-500 mt-1">Prazo: {{ op_data.op.delivery_date|date:"d/m/Y" }}</div>
+                            <div class="text-sm font-bold text-blue-700 mt-1">
+                                Duração: {{ op_data.tempo_producao_horas|floatformat:"2" }}h
+                            </div>
+                        </div>
+                    {% empty %}
+                        <p>Nenhuma ordem de produção disponível para planejamento.</p>
+                    {% endfor %}
+                </div>
+                <div class="mt-6 flex-shrink-0">
+                    <button id="openNewOrderModal" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-lg transition-colors flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                        </svg>
+                        Criar Ordem de Produção
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Calendário Semanal -->
+            <div class="flex-1 bg-gray-800 rounded-xl shadow-2xl border border-gray-700">
+                <!-- Cabeçalho da grade -->
+                <div class="time-header-grid">
+                    <div class="p-4 text-center font-bold text-blue-400">Hora</div>
+                    {% for day in "0123456"|make_list %}
+                        <div class="p-4 text-center font-bold text-blue-400 border-r border-gray-600" data-day-of-week="{{ day }}"></div>
+                    {% endfor %}
+                </div>
+                <!-- Grade de horários -->
+                <div class="time-grid-container" id="timeGrid">
+                    <!-- Gerado por JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="newOrderModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-xl p-6 w-96 border border-gray-700">
+            <h3 class="text-xl font-bold text-blue-400 mb-4">Nova Ordem de Produção</h3>
+            
+            <form id="form-criar-op" class="space-y-4">
+                
+                {% csrf_token %}
+    
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1" for="newOrderPn">PN</label>
+                    <select id="newOrderPn" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-gray-100 focus:outline-none focus:border-blue-500">
+                        </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1" for="newOrderQuantity">Quantidade</label>
+                    <input type="number" id="newOrderQuantity" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-gray-100 focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1" for="newOrderDeadline">Data de Entrega</label>
+                    <input type="date" id="newOrderDeadline" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-gray-100 focus:outline-none focus:border-blue-500">
+                </div>
+            
+            </form> <div class="flex gap-3 mt-6">
+                <button id="createOrderBtn" class="flex-1 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg transition-colors">Criar</button>
+                <button id="closeModalBtn" class="flex-1 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg transition-colors">Cancelar</button>
+            </div>
+            <p class="text-red-400 mt-4 hidden" id="modal-error"></p>
+        </div>
+    </div>
+
+    <div id="confirmModal" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-xl p-8 border border-gray-700 shadow-2xl text-center w-full max-w-md">
+            <h3 class="text-2xl font-bold text-yellow-400 mb-4">Confirmar Remoção</h3>
+            <p id="confirmModalText" class="text-gray-300 text-lg mb-8">
+                Você tem certeza que deseja remover esta Ordem de Produção do planejamento?
+            </p>
+            <div class="flex gap-4">
+                <button id="cancelDeleteBtn" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                    Cancelar
+                </button>
+                <button id="confirmDeleteBtn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                    Sim, Remover
+                </button>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+
+{% block scripts %}    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // ===================================================================
+            // Elementos do DOM e Variáveis de Estado Globais
+            // ===================================================================
+            const timeGridContainer = document.getElementById('timeGrid');
+            const machineSelector = document.querySelector('.machine-selector');
+            const productionOrdersContainer = document.getElementById('productionOrders');
+            const prevWeekBtn = document.getElementById('prevWeekBtn');
+            const nextWeekBtn = document.getElementById('nextWeekBtn');
+            const currentWeekDisplay = document.getElementById('currentWeek');
+            
+            // Elementos do Modal
+            const modal = document.getElementById('newOrderModal');
+            const openModalBtn = document.getElementById('openNewOrderModal');
+            const closeModalBtn = document.getElementById('closeModalBtn');
+            const createOrderBtn = document.getElementById('createOrderBtn');
+            const pnSelect = document.getElementById('newOrderPn');
+            const quantityInput = document.getElementById('newOrderQuantity');
+            const deadlineInput = document.getElementById('newOrderDeadline');
+            const modalError = document.getElementById('modal-error');
+            
+            let currentMonday = new Date();
+            let selectedMachineId = null;
+            let plannedOps = {};
+            
+            const todosOsIdsAgendados = new Set({{ todos_ids_agendados|safe }});
+            
+            // ===================================================================
+            // NOVA FUNÇÃO DE ALINHAMENTO
+            // ===================================================================
+            function alinharCabecalhoComGrid() {
+            const header = document.querySelector('.time-header-grid');
+            const grid = timeGridContainer;
+            if (header && grid) {
+                const scrollbarWidth = grid.offsetWidth - grid.clientWidth;
+                header.style.paddingRight = `${scrollbarWidth}px`;
+            }
+            }
+            // =================================================================
+            // CARREGAMENTO DOS DADOS INICIAIS (VINDO DO DJANGO)
+            // =================================================================
+            const agendamentosIniciais = {{ agendamentos_iniciais|safe }};
+            agendamentosIniciais.forEach(agendamento => {
+                const key = 'maquina_' + agendamento.maquinaId;
+                if (!plannedOps[key]) { plannedOps[key] = []; }
+                plannedOps[key].push({ opId: agendamento.opId, day: agendamento.day, hour: agendamento.hour, duration: agendamento.duration });
+            });
+            console.log("Agendamentos iniciais carregados:", plannedOps);
+    
+            // ===================================================================
+            // FUNÇÕES PRINCIPAIS (Semana, Grade, Renderização, Drag&Drop)
+            // ===================================================================
+    
+            function showToast(message) {
+                const toast = document.createElement('div');
+                toast.className = 'toast-notification';
+                toast.textContent = message;
+                document.body.appendChild(toast);
+    
+                setTimeout(() => {
+                    toast.classList.add('show');
+                }, 100);
+    
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => {
+                        document.body.removeChild(toast);
+                    }, 500);
+                }, 3000);
+            }
+            
+            function formatarDataBR(data) {
+                const dia = data.getDate().toString().padStart(2, '0');
+                const mes = (data.getMonth() + 1).toString().padStart(2, '0');
+                return `${dia}/${mes}`;
+            }
+    
+            function setupCurrentWeek() {
+                const dayOfWeek = currentMonday.getDay();
+                const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                const monday = new Date(currentMonday);
+                monday.setDate(currentMonday.getDate() + daysToMonday);
+                currentMonday = monday; 
+    
+                const sunday = new Date(monday);
+                sunday.setDate(monday.getDate() + 6);
+                if (currentWeekDisplay) {
+                    currentWeekDisplay.textContent = `Semana de ${monday.toLocaleDateString('pt-BR')} a ${sunday.toLocaleDateString('pt-BR')}`;
+                }
+                
+                const dayHeaders = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+                document.querySelectorAll('.time-header-grid [data-day-of-week]').forEach((header, index) => {
+                    const date = new Date(monday);
+                    date.setDate(monday.getDate() + index);
+                    header.innerHTML = `${dayHeaders[index]}<br>(${formatarDataBR(date)})`;
+                });
+            }
+            
+            function createTimeGrid(maquinaId) {
+                timeGridContainer.innerHTML = '';
+                if (!maquinaId) return;
+                const weekdays = ['0', '1', '2', '3', '4', '5', '6'];
+                for (let hour = 0; hour < 24; hour++) {
+                    const timeRow = document.createElement('div');
+                    timeRow.className = 'time-row';
+                    const timeLabel = document.createElement('div');
+                    timeLabel.className = 'time-label';
+                    timeLabel.textContent = `${hour.toString().padStart(2, '0')}:00`;
+                    timeRow.appendChild(timeLabel);
+                    for (let day = 0; day < 7; day++) {
+                        const daySlot = document.createElement('div');
+                        daySlot.className = 'hourly-slot';
+                        timeRow.appendChild(daySlot);
+                    }
+                    timeGridContainer.appendChild(timeRow);
+                    alinharCabecalhoComGrid();
+                }
+                setupNewDragAndDrop();
+            }
+    
+            function atualizarVisualizacao() {
+                if (!selectedMachineId) return;
+            
+                const grid = timeGridContainer;
+                const ALTURA_DA_LINHA = 40;
+                const LARGURA_LABEL_HORA = 100;
+            
+                // --- FASE 1: RESET GERAL ---
+                // Pega TODOS os IDs de OPs que estão agendadas em QUALQUER máquina
+                document.querySelectorAll('.production-card').forEach(card => {
+                    card.style.cssText = '';
+                    card.style.display = ''; // Garante que fiquem visíveis para a próxima etapa
+                    productionOrdersContainer.appendChild(card);
+                });
+            
+                // --- FASE 2: RENDERIZAR A MÁQUINA SELECIONADA ---
+                const opsDaMaquinaSelecionada = plannedOps['maquina_' + selectedMachineId] || [];
+                const gridRect = grid.getBoundingClientRect();
+            
+                opsDaMaquinaSelecionada.forEach(agendamento => {
+                    const card = document.querySelector(`.production-card[data-op-id='${agendamento.opId}']`);
+                    if (card) {
+                        const duration = parseFloat(card.dataset.duration);
+                        if (!isNaN(duration)) {
+                            const cardTop = agendamento.hour * ALTURA_DA_LINHA;
+                            const cardHeight = duration * ALTURA_DA_LINHA;
+                            const dayColumnWidth = (gridRect.width - LARGURA_LABEL_HORA) / 7;
+                            const cardLeft = LARGURA_LABEL_HORA + (agendamento.day * dayColumnWidth);
+                            const cardWidth = dayColumnWidth - 4; // Pequena margem
+            
+                            card.style.position = 'absolute';
+                            card.style.zIndex = '10';
+                            card.style.top = `${cardTop}px`;
+                            card.style.height = `${cardHeight}px`;
+                            card.style.left = `${cardLeft}px`;
+                            card.style.width = `${cardWidth}px`;
+                            grid.appendChild(card);
+                        }
+                    }
+                });
+            
+                // --- FASE 3: ESCONDER OPS JÁ PLANEJADAS DA LISTA ---
+                // Agora que a grade está pronta, escondemos da lista da esquerda os cartões que já estão agendados
+                todosOsIdsAgendados.forEach(opId => {
+                    const cardNaLista = productionOrdersContainer.querySelector(`.production-card[data-op-id='${opId}']`);
+                    if (cardNaLista) {
+                        cardNaLista.style.display = 'none';
+                    }
+                });
+                
+                setupNewDragAndDrop();
+            }            
+            
+            
+            // ===================================================================
+            // VERSÃO FINAL E LIMPA - SETUP DRAG AND DROP
+            // ===================================================================
+            function formatarDataParaAPI(data) {
+                const ano = data.getFullYear();
+                const mes = (data.getMonth() + 1).toString().padStart(2, '0');
+                const dia = data.getDate().toString().padStart(2, '0');
+                return `${ano}-${mes}-${dia}`; // Retorna 'YYYY-MM-DD' local
+            }
+
+            async function fetchWeekData(startDate) {
+                const startDateString = formatarDataParaAPI(startDate);
+                try {
+                    const response = await fetch(`{% url 'get_week_data_api' %}?start_date=${startDateString}`);
+                    if (!response.ok) {
+                        throw new Error('Erro ao buscar dados da semana.');
+                    }
+                    const agendamentosDaSemana = await response.json();
+            
+                    // Limpa o objeto de planejamento antigo
+                    plannedOps = {}; 
+            
+                    // Repopula o objeto com os novos dados da semana
+                    agendamentosDaSemana.forEach(agendamento => {
+                        const key = 'maquina_' + agendamento.maquinaId;
+                        if (!plannedOps[key]) { plannedOps[key] = []; }
+                        plannedOps[key].push(agendamento);
+                    });
+            
+                    // Chama a função de renderização para redesenhar a tela com os novos dados
+                    atualizarVisualizacao(); // Ou renderizarOpsAgendadas(), se você não renomeou
+            
+                } catch (error) {
+                    console.error('Falha ao buscar dados da semana:', error);
+                    alert('Não foi possível carregar os dados da semana selecionada.');
+                }
+            }
+            
+            function setupNewDragAndDrop() {
+                // Pega apenas os cartões VISÍVEIS na lista para torná-los arrastáveis
+                const draggables = document.querySelectorAll('#productionOrders .production-card:not([style*="display: none"])');
+                
+                draggables.forEach(card => {
+                    card.ondragstart = null; 
+                    card.addEventListener('dragstart', (event) => {
+                        event.dataTransfer.setData('text/plain', card.dataset.opId);
+                        event.dataTransfer.setData('duration', card.dataset.duration);
+                    });
+                });
+            
+                const grid = timeGridContainer;
+                grid.ondragover = null;
+                grid.ondrop = null;
+                grid.addEventListener('dragover', (event) => { event.preventDefault(); });
+                
+                grid.addEventListener('drop', (event) => {
+                    event.preventDefault();
+                    
+                    const opId = event.dataTransfer.getData('text/plain');
+                    const duration = parseFloat(event.dataTransfer.getData('duration'));
+                    if (isNaN(duration)) return;
+            
+                    const timeRow = event.target.closest('.time-row');
+                    if (!timeRow) return;
+            
+                    const allRows = Array.from(grid.children).filter(child => child.classList.contains('time-row'));
+                    const startHour = allRows.indexOf(timeRow);
+                    
+                    const rowChildren = Array.from(timeRow.children);
+                    const startDay = rowChildren.indexOf(event.target) - 1;
+            
+                    if (startDay < 0 || startHour < 0) return;
+            
+                    const dataDoAgendamento = new Date(currentMonday);
+                    dataDoAgendamento.setDate(currentMonday.getDate() + startDay);
+                    const dataFormatada = formatarDataParaAPI(dataDoAgendamento);
+            
+                    fetch("{% url 'salvar_agendamento_api' %}", {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                        body: JSON.stringify({ op_id: opId, maquina_id: selectedMachineId, start_date: dataFormatada, start_hour: startHour })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'sucesso') {
+                            // ATUALIZA O ESTADO LOCAL
+                            if (!plannedOps['maquina_' + selectedMachineId]) plannedOps['maquina_' + selectedMachineId] = [];
+                            plannedOps['maquina_' + selectedMachineId] = plannedOps['maquina_' + selectedMachineId].filter(op => op.opId != opId);
+                            plannedOps['maquina_' + selectedMachineId].push({ opId: parseInt(opId), day: startDay, hour: startHour, duration: duration });
+                            todosOsIdsAgendados.add(parseInt(opId));
+                            // CHAMA A FUNÇÃO MESTRE PARA REDESENHAR TUDO
+                            atualizarVisualizacao();
+                        } else {
+                            alert('Erro ao salvar: ' + data.mensagem);
+                        }
+                    }).catch(error => console.error('Erro de rede:', error));
+                });
+            }
+    
+            // ===================================================================
+            // EVENT LISTENERS (Escutadores de Eventos)
+            // ===================================================================
+            
+            window.addEventListener('resize', () => {
+                alinharCabecalhoComGrid();
+                // Recalcula o posicionamento dos cartões quando a janela é redimensionada
+                if (selectedMachineId) {
+                    setTimeout(() => atualizarVisualizacao(), 100);
+                }
+            });
+            
+            machineSelector.addEventListener('click', (e) => {
+                const target = e.target.closest('button');
+                if (target) {
+                    selectedMachineId = parseInt(target.dataset.maquinaId);
+                    document.querySelectorAll('.machine-selector button').forEach(btn => btn.classList.remove('selected'));
+                    target.classList.add('selected');
+                    
+                    // CORREÇÃO: Não recriamos a grade, apenas atualizamos a visualização das OPs.
+                    atualizarVisualizacao(); 
+                }
+            });
+    
+            // ===================================================================
+            // LÓGICA DE REMOÇÃO COM MODAL CUSTOMIZADO
+            // ===================================================================
+
+            // Pega os elementos do novo modal
+            const confirmModal = document.getElementById('confirmModal');
+            const confirmModalText = document.getElementById('confirmModalText');
+            const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+            const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+
+            // Variável para guardar o ID da OP a ser removida
+            let opIdParaRemover = null;
+
+
+
+            // Função para ABRIR o modal de confirmação
+            function openConfirmModal(opId) {
+                opIdParaRemover = opId; // Guarda o ID da OP
+                confirmModalText.innerHTML = `Você tem certeza que deseja remover a <strong class="text-white">OP-${opId}</strong> do planejamento?`;
+                confirmModal.classList.remove('hidden');
+                confirmModal.classList.add('flex');
+            }
+
+            // Função para FECHAR o modal de confirmação
+            function closeConfirmModal() {
+                confirmModal.classList.add('hidden');
+                confirmModal.classList.remove('flex');
+                opIdParaRemover = null; // Limpa o ID
+            }
+
+            // 1. O "ouvinte" principal na grade de planejamento
+            timeGridContainer.addEventListener('click', (event) => {
+                const clickedCard = event.target.closest('.production-card');
+                if (clickedCard) {
+                    const opId = parseInt(clickedCard.dataset.opId);
+                    openConfirmModal(opId); // Em vez de 'confirm()', abre nosso modal
+                }
+            });
+
+            // 2. Ação do botão "Cancelar"
+            cancelDeleteBtn.addEventListener('click', () => {
+                closeConfirmModal();
+            });
+
+            // 3. Ação do botão "Sim, Remover" (o principal)
+            confirmDeleteBtn.addEventListener('click', () => {
+                if (!opIdParaRemover) return;
+
+                fetch("{% url 'remover_agendamento_api' %}", {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                    body: JSON.stringify({ op_id: opIdParaRemover })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'sucesso') {
+                        // Atualiza o estado local
+                        if (plannedOps['maquina_' + selectedMachineId]) {
+                            plannedOps['maquina_' + selectedMachineId] = plannedOps['maquina_' + selectedMachineId].filter(op => op.opId !== opIdParaRemover);
+                        }
+                        // Redesenha a grade
+                        atualizarVisualizacao();
+                    } else {
+                        alert('Erro ao remover agendamento: ' + data.mensagem);
+                    }
+                }).catch(error => alert('Erro de rede ao remover agendamento.'))
+                .finally(() => {
+                    // Garante que o modal seja fechado independentemente do resultado
+                    closeConfirmModal();
+                });
+            });
+    
+            prevWeekBtn.addEventListener('click', () => {
+                currentMonday.setDate(currentMonday.getDate() - 7);
+                setupCurrentWeek(); // Atualiza os cabeçalhos
+                fetchWeekData(currentMonday); // Busca e renderiza os dados da nova semana
+            });
+            
+            // Listener do botão "Próxima Semana"
+            nextWeekBtn.addEventListener('click', () => {
+                currentMonday.setDate(currentMonday.getDate() + 7);
+                setupCurrentWeek(); // Atualiza os cabeçalhos
+                fetchWeekData(currentMonday); // Busca e renderiza os dados da nova semana
+            });
+            
+            // ===================================================================
+            // LÓGICA DO MODAL (Completa)
+            // ===================================================================
+            function openModal() { if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } fetchPNs(); }
+            function closeModal() { if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); } }
+            if (openModalBtn) openModalBtn.addEventListener('click', openModal);
+            if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+            if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+            
+            async function fetchPNs() {
+                try {
+                    const response = await fetch("{% url 'get_pns_api' %}"); // CORRIGIDO
+                    if (!response.ok) throw new Error('Erro ao buscar PNs.');
+                    const pns = await response.json();
+                    pnSelect.innerHTML = '<option value="">Selecione um PN</option>';
+                    pns.forEach(pn => {
+                        const option = document.createElement('option');
+                        option.value = pn.id;
+                        option.textContent = `${pn.pn_code} (${pn.capacity_liters}L)`;
+                        pnSelect.appendChild(option);
+                    });
+                } catch (error) {
+                    modalError.textContent = error.message;
+                    modalError.classList.remove('hidden');
+                }
+            }
+            
+            if (createOrderBtn) createOrderBtn.addEventListener('click', async () => {
+                const pnId = pnSelect.value;
+                const quantity = quantityInput.value;
+                const deadline = deadlineInput.value;
+                if (!pnId || !quantity || !deadline) {
+                    modalError.textContent = 'Todos os campos são obrigatórios.';
+                    modalError.classList.remove('hidden');
+                    return;
+                }
+                try {
+                    const response = await fetch("{% url 'criar_op_api' %}", { // CORRIGIDO
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                        body: JSON.stringify({ pn_id: pnId, quantity: quantity, delivery_date: deadline })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.mensagem || 'Ocorreu um erro.');
+                    closeModal();
+
+                    // 2. Mostra o pop-up de sucesso personalizado ("toast")
+                    showToast(result.mensagem);
+
+                    // 3. Espera 2 segundos para o usuário ler a mensagem e SÓ ENTÃO recarrega a página
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000); // 2000 milissegundos = 2 segundos
+                    
+                    // =======================================================================
+
+                } catch (error) {
+                    modalError.textContent = error.message;
+                    modalError.classList.remove('hidden');
+                }
+            });
+    
+            // ===================================================================
+            // INICIALIZAÇÃO DA PÁGINA
+            // ===================================================================
+            setupCurrentWeek();
+            const primeiraMaquinaBtn = machineSelector.querySelector('button');
+            if (primeiraMaquinaBtn) {
+                selectedMachineId = parseInt(primeiraMaquinaBtn.dataset.maquinaId);
+                primeiraMaquinaBtn.classList.add('selected');
+
+                // CORREÇÃO: Criamos a grade UMA VEZ, e depois renderizamos as OPs.
+                createTimeGrid(selectedMachineId); // Cria a estrutura de linhas vazia
+                atualizarVisualizacao();           // Popula a grade com as OPs planejadas
+            } else {
+                console.log("Nenhuma máquina encontrada para carregar a grade inicial.");
+            }
+        });
+    </script>
+{% endblock %}

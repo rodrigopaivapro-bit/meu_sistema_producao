@@ -1,0 +1,31 @@
+Arquivos de Ambiente e Credenciais - NUNCA ENVIAR PARA O REPOSITÓRIO!
+========================================================================
+*.env
+.env
+
+Arquivos do Python e do Ambiente Virtual (venv)
+========================================================================
+venv/
+pycache/
+*.pyc
+*.pyo
+*.pyd
+
+Arquivos de Banco de Dados local (se usar SQLite)
+========================================================================
+*.sqlite3
+db.sqlite3
+
+Arquivos de Mídia e Estáticos Coletados (gerados pelo Django)
+========================================================================
+/media/
+/staticfiles/
+
+Arquivos de IDE e Sistema Operacional
+========================================================================
+.vscode/
+.cursor/
+.idea/
+*.swp
+*~
+.DS_Store

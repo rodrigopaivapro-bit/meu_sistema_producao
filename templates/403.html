@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acesso Negado</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 font-sans text-gray-100 min-h-screen">
+    <div class="min-h-screen p-6 flex flex-col justify-center items-center text-center">
+        <div class="bg-gray-800 rounded-xl shadow-2xl p-8 md:p-12 border border-gray-700">
+            <h1 class="text-5xl font-bold text-red-500 mb-4">Acesso Negado (403)</h1>
+            <p class="text-gray-300 text-lg mb-8">
+                Você não tem a permissão necessária para acessar esta página.
+            </p>
+            <a href="{% url 'menu' %}" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-colors transform hover:scale-105 text-xl">
+                Voltar ao Menu Principal
+            </a>
+        </div>
+    </div>
+</body>
+</html>
+```
+Agora, quando o erro 403 acontecer, o Django mostrará esta página amigável em vez da padrão.
+
+---
+#### Passo 3 (A Melhor Prática): Esconder o Botão no Menu
+
+Para evitar que o usuário sequer clique no botão, devemos escondê-lo no `menu.html` se ele não tiver a permissão. Você já fez isso para o botão de "Produção", agora faremos o mesmo para o de "Planejamento".
+
+1.  Abra seu arquivo `menu.html`.
+2.  Envolva o link do botão de Planejamento com uma verificação de permissão.
+
+**Mude isto:**
+```html
+<!-- menu.html (CÓDIGO ANTIGO) -->
+<a href="{% url 'planejamento' %}" class="bg-blue-600 ...">
+    PLANEJAMENTO
+</a>
+```
+
+**Para isto:**
+```html
+<!-- menu.html (CÓDIGO CORRIGIDO) -->
+{% if perms.producao.can_view_planejamento %}
+    <a href="{% url 'planejamento' %}" class="bg-blue-600 ...">
+        PLANEJAMENTO
+    </a>
+{% endif %}

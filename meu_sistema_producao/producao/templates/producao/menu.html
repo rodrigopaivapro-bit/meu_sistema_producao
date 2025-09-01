@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block title %}PROPLAN SG{% endblock %}
+
+{% block content %}
+<div class="min-h-[calc(100vh-65px)] p-6 flex flex-col justify-center items-center">
+    <!-- Título do Menu -->
+    <div class="bg-gray-800 rounded-xl shadow-2xl p-8 mb-8 border border-gray-700 text-center">
+        <h1 class="text-5xl font-bold text-blue-400 mb-4">MENU PRINCIPAL</h1>
+        <p class="text-gray-300 text-lg">Seja bem-vindo(a)! Selecione um módulo para continuar.</p>
+    </div>
+
+    <!-- Botões de Menu com verificação de permissão -->
+    <div class="flex flex-col md:flex-row gap-6">
+        {% if perms.producao.can_view_planejamento %}
+            <a href="{% url 'planejamento' %}" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-6 px-12 rounded-xl shadow-lg transition-colors transform hover:scale-105 text-2xl">
+                PLANEJAMENTO
+            </a>
+        {% endif %}
+        {% if perms.producao.can_view_producao %}
+            <a href="{% url 'view_producao' %}" class="bg-green-600 hover:bg-green-700 text-white font-bold py-6 px-12 rounded-xl shadow-lg transition-colors transform hover:scale-105 text-2xl">
+                PRODUÇÃO
+            </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

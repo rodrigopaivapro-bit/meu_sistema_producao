@@ -1,0 +1,75 @@
+{% load static %} 
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PROPLAN SG</title>
+    <link rel="icon" type="image/png" href="{% static 'producao/images/proplan_logo.png' %}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    
+        /* Regra para o container do CAPTCHA */
+        .captcha-container {
+            display: flex;              /* Ativa o layout flexível */
+            flex-direction: column;     /* Organiza os itens em uma coluna (um abaixo do outro) */
+            align-items: center;        /* Centraliza os itens horizontalmente */
+            gap: 0.75rem;               /* Cria um espaço entre a imagem e o campo de texto (12px) */
+            margin-bottom: 1rem;        /* Mantém um espaço abaixo do captcha */
+        }
+    
+        /* Regra para o CAMPO DE TEXTO dentro do container do CAPTCHA */
+        .captcha-container input[type="text"] {
+            /* Aplica exatamente os mesmos estilos dos outros campos para consistência */
+            @apply w-full bg-white text-black border border-gray-300 rounded-lg px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-gray-800 rounded-xl shadow-2xl p-8 w-full max-w-md border border-gray-700 text-center">
+        {% load static %}
+        <img src="{% static 'producao/images/proplan_logo.png' %}" alt="Logo ProPlan" class="h-40 w-auto mx-auto mb-4">
+        <h1 class="text-4xl font-bold text-blue-400 mb-2">SISTEMA DE GESTÃO</h1>
+        <p class="text-gray-400 mb-6">Acesso ao Painel de Controle</p>
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            <div>
+                <label class="form-label" for="{{ form.username.id_for_label }}">Usuário:</label>
+                
+                <input type="text" name="{{ form.username.name }}" id="{{ form.username.id_for_label }}" value="{{ form.username.value|default:'' }}" 
+                       class="w-2/3 bg-blue text-black border border-gray-300 rounded-lg px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" required>
+            </div>
+            <div>
+                <label class="form-label" for="{{ form.password.id_for_label }}">Senha:</label>
+        
+                <input type="password" name="{{ form.password.name }}" id="{{ form.password.id_for_label }}" 
+                       class="w-2/3 bg-blue text-black border border-gray-300 rounded-lg px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" required>
+            </div>
+            <div class="captcha-container">
+                {{ form.captcha }}
+            </div>
+            
+            {% if form.errors %}
+                <div class="text-red-400 text-sm">
+                    {% for field, errors in form.errors.items %}
+                        {% for error in errors %}
+                            <p class="mb-1">{{ error }}</p>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+            
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-colors transform hover:scale-105">
+                Entrar
+            </button>
+        </form>
+        <p class="mt-6 text-gray-400 text-sm">
+            Para acessar o painel de administração, <a href="{% url 'admin:index' %}" class="text-blue-400 hover:underline">clique aqui</a>.
+        </p>
+    </div>
+</body>
+</html>

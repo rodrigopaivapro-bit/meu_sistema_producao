@@ -1,0 +1,25 @@
+#header {
+    background-color: #0579B6; /* Cor de fundo da barra superior */
+    color: white;
+    position: relative; /* Para posicionar a imagem */
+    padding-left: 150px; /* Espaço para a imagem */
+}
+
+#header h1 {
+    margin: 0;
+    font-size: 2.5em;
+    font-weight: normal;
+    padding: 10px 0;
+}
+
+#header::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 5px;
+    width: 130px; /* Largura da sua imagem */
+    height: 50px; /* Altura da sua imagem */
+    background-image: url('img/logo_empresa.png'); /* Caminho para a sua imagem */
+    background-size: contain; /* Ajusta a imagem ao tamanho do container */
+    background-repeat: no-repeat;
+}
