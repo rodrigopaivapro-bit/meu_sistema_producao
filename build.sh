@@ -13,5 +13,3 @@ python manage.py collectstatic --no-input
 
 # Passo 3: Aplica as migrações do banco de dados para criar ou atualizar as tabelas.
 python manage.py migrate
-
-python manage.py createsuperuser --noinput
