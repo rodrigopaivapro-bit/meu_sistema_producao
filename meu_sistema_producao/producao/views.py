@@ -8,7 +8,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 import json
 from datetime import datetime, timedelta
 from django.utils import timezone
-from .models import Pn, Maquina, OrdemProducao, Agendamento, ApontamentoProducao, Parada, TipoParada
+from .models import Pn, Maquina, OrdemProducao, Agendamento, ApontamentoProducao, Parada, TipoParada, TipoRefugo, Refugo
 from datetime import date
 
 
@@ -52,10 +52,13 @@ def planejamento_view(request):
             local_start_time = timezone.localtime(agendamento.start_datetime)
             
             agendamentos_iniciais_formatado.append({
+                'id': agendamento.id, # [CORREÇÃO] Envia o ID do agendamento
                 'opId': agendamento.ordem_producao.id,
                 'maquinaId': agendamento.maquina.id,
-                'day': local_start_time.weekday(), # Pega o dia da semana do horário local
-                'hour': local_start_time.hour,     # <<< USA A HORA LOCAL CORRETA
+                'day': local_start_time.weekday(), 
+                'hour': local_start_time.hour,
+                'duration': agendamento.ordem_producao.get_duracao_horas(), # [CORREÇÃO] Envia a duração
+                'lado': agendamento.lado # [CORREÇÃO] Envia o lado
             })
 
             todos_ids_agendados = list(Agendamento.objects.values_list('ordem_producao_id', flat=True))
@@ -83,6 +86,7 @@ def salvar_agendamento_api(request):
         maquina_id = data.get('maquina_id')
         start_date_str = data.get('start_date')
         start_hour = int(data.get('start_hour'))
+        lado_recebido = data.get('lado')
 
         op = get_object_or_404(OrdemProducao, id=op_id)
         maquina = get_object_or_404(Maquina, id=maquina_id)
@@ -100,9 +104,25 @@ def salvar_agendamento_api(request):
                 'maquina': maquina,
                 'start_datetime': start_datetime,
                 'end_datetime': end_datetime,
+                'lado': lado_recebido
             }
         )
-        return JsonResponse({'status': 'sucesso', 'mensagem': 'OP agendada com sucesso!'})
+        
+        agendamento_data = {
+            'opId': op.id,
+            'maquinaId': maquina.id,
+            'day': start_datetime.weekday(),  # Monday=0, Sunday=6 (corresponde ao JS)
+            'hour': start_datetime.hour,
+            'duration': round(tempo_producao_horas, 4), # Retorna a duração precisa
+            'lado': agendamento.lado
+        }
+
+        return JsonResponse({
+            'status': 'sucesso', 
+            'mensagem': f'OP-{op.id} agendada com sucesso!',
+            'agendamento': agendamento_data  # <-- A MUDANÇA PRINCIPAL!
+        })
+
     except Exception as e:
         return JsonResponse({'status': 'erro', 'mensagem': str(e)}, status=400)
 
@@ -112,10 +132,10 @@ def salvar_agendamento_api(request):
 def remover_agendamento_api(request):
     try:
         data = json.loads(request.body)
-        op_id = data.get('op_id')
+        agendamento_id = data.get('agendamento_id')
         
         # Busca o agendamento usando o ID da Ordem de Produção
-        agendamento = get_object_or_404(Agendamento, ordem_producao__id=op_id)
+        agendamento = get_object_or_404(Agendamento, id=agendamento_id)
         
         # =======================================================================
         # AJUSTE: ATUALIZAR O STATUS DA OP ANTES DE REMOVER O AGENDAMENTO
@@ -210,11 +230,13 @@ def get_week_data_api(request):
     for agendamento in agendamentos_da_semana:
         local_start_time = timezone.localtime(agendamento.start_datetime)
         agendamentos_formatados.append({
+            'id': agendamento.id, # [CORREÇÃO] Envia o ID do agendamento
             'opId': agendamento.ordem_producao.id,
             'maquinaId': agendamento.maquina.id,
             'day': local_start_time.weekday(),
             'hour': local_start_time.hour,
             'duration': agendamento.ordem_producao.get_duracao_horas(),
+            'lado': agendamento.lado # [CORREÇÃO] Envia o lado
         })
 
     return JsonResponse(agendamentos_formatados, safe=False)
@@ -244,15 +266,16 @@ def get_dados_maquina_api(request):
     incluindo detalhes técnicos completos do PN.
     """
     maquina_id = request.GET.get('maquina_id')
-    hoje = date.today() # Mantendo sua lógica atual de buscar por hoje
+    hoje = date.today() 
 
     agendamentos_hoje = Agendamento.objects.filter(
         maquina_id=maquina_id,
         start_datetime__date=hoje
     ).select_related('ordem_producao__pn').order_by('start_datetime')
 
-    op_em_producao_ag = agendamentos_hoje.filter(ordem_producao__status='Em Produção').first()
-    proxima_op_ag = agendamentos_hoje.filter(ordem_producao__status='Planejada').first()
+    # [MODIFICADO] Busca LISTAS, não mais .first()
+    ops_em_producao_ag = agendamentos_hoje.filter(ordem_producao__status='Em Produção')
+    proximas_ops_ag = agendamentos_hoje.filter(ordem_producao__status='Planejada')
 
     def formatar_op(agendamento):
         if not agendamento:
@@ -261,39 +284,62 @@ def get_dados_maquina_api(request):
         op = agendamento.ordem_producao
         pn = op.pn
 
-        # =======================================================================
-        # CORREÇÃO DOS ERROS DE DIGITAÇÃO APLICADA ABAIXO
-        # 'wheight' foi trocado por 'weight'
-        # =======================================================================
+        inicio_local = timezone.localtime(agendamento.start_datetime)
+        inicio_formatado = inicio_local.strftime('%d/%m %H:%M')
+
         return {
             'agendamento_id': agendamento.id,
             'op_id': op.id,
+            'lado': agendamento.lado, # <-- [NOVO] Campo 'lado' é essencial
             'pn_code': pn.pn_code,
             'description': pn.description,
             'capacity_liters': pn.capacity_liters,
             'cycle_time_seconds': pn.cycle_time_seconds,
-            'min_weight_kg': pn.min_weight_kg,   # Corrigido
-            'max_weight_kg': pn.max_weight_kg,   # Corrigido
-            'sold_weight_kg': pn.sold_weight_kg,    # Corrigido
+            'min_weight_kg': pn.min_weight_kg,
+            'max_weight_kg': pn.max_weight_kg,
+            'sold_weight_kg': pn.sold_weight_kg,
             'quantidade_total': op.quantity,
             'quantidade_produzida': op.quantidade_produzida,
-            'status': op.status
+            'status': op.status,
+            'inicio_agendado': inicio_formatado
         }
-        # =======================================================================
 
+    # [MODIFICADO] Retorna listas no formato que o JavaScript vai esperar
     dados = {
-        'op_em_producao': formatar_op(op_em_producao_ag),
-        'proxima_op': formatar_op(proxima_op_ag)
+        'ops_em_producao': [formatar_op(ag) for ag in ops_em_producao_ag],
+        'proximas_ops': [formatar_op(ag) for ag in proximas_ops_ag]
     }
     return JsonResponse(dados)
 
 @login_required
 def iniciar_op_api(request):
-    data = json.loads(request.body)
-    op = get_object_or_404(OrdemProducao, id=data.get('op_id'))
-    op.status = 'Em Produção'
-    op.save()
-    return JsonResponse({'status': 'sucesso', 'mensagem': 'OP iniciada!'})
+    try:
+        data = json.loads(request.body)
+        # [MODIFICADO] Recebe 'maquina_id' em vez de 'op_id'
+        maquina_id = data.get('maquina_id')
+        if not maquina_id:
+            return JsonResponse({'status': 'erro', 'mensagem': 'ID da máquina não fornecido.'}, status=400)
+
+        hoje = date.today()
+
+        # 1. Encontra todos os agendamentos "Planejados" para hoje nesta máquina
+        agendamentos_para_iniciar = Agendamento.objects.filter(
+            maquina_id=maquina_id,
+            start_datetime__date=hoje,
+            ordem_producao__status='Planejada'
+        )
+        
+        if not agendamentos_para_iniciar.exists():
+            return JsonResponse({'status': 'erro', 'mensagem': 'Nenhuma OP planejada encontrada para iniciar.'}, status=404)
+
+        # 2. Atualiza o status de todas as OPs encontradas de uma só vez
+        op_ids_para_iniciar = agendamentos_para_iniciar.values_list('ordem_producao_id', flat=True)
+        OrdemProducao.objects.filter(id__in=op_ids_para_iniciar).update(status='Em Produção')
+
+        return JsonResponse({'status': 'sucesso', 'mensagem': 'OPs iniciadas com sucesso!'})
+        
+    except Exception as e:
+        return JsonResponse({'status': 'erro', 'mensagem': str(e)}, status=400)
 
 @login_required
 def apontar_producao_api(request):
@@ -380,3 +426,49 @@ def finalizar_op_api(request):
         Parada.objects.filter(agendamento=agendamento, fim_parada__isnull=True).update(fim_parada=timezone.now())
 
     return JsonResponse({'status': 'sucesso', 'mensagem': 'OP finalizada!'})
+
+@login_required
+def get_tipos_refugo_api(request):
+    """Retorna uma lista de todos os tipos de refugo cadastrados."""
+    tipos_refugo = TipoRefugo.objects.all().values('id', 'codigo', 'descricao')
+    return JsonResponse(list(tipos_refugo), safe=False)
+
+@require_POST
+@login_required
+def registrar_refugo_api(request):
+    """Registra um novo apontamento de refugo."""
+    try:
+        data = json.loads(request.body)
+        agendamento_id = data.get('agendamento_id')
+        tipo_refugo_id = data.get('tipo_refugo_id')
+        quantidade = data.get('quantidade')
+
+        # Validações básicas
+        if not all([agendamento_id, tipo_refugo_id, quantidade]):
+            return JsonResponse({'status': 'erro', 'mensagem': 'Dados incompletos.'}, status=400)
+        
+        try:
+            quantidade_int = int(quantidade)
+            if quantidade_int <= 0:
+                raise ValueError("Quantidade deve ser positiva.")
+        except ValueError:
+            return JsonResponse({'status': 'erro', 'mensagem': 'Quantidade inválida.'}, status=400)
+
+        # Busca os objetos no banco
+        agendamento = get_object_or_404(Agendamento, id=agendamento_id)
+        tipo_refugo = get_object_or_404(TipoRefugo, id=tipo_refugo_id)
+
+        # Cria o registro de Refugo
+        Refugo.objects.create(
+            agendamento=agendamento,
+            tipo_refugo=tipo_refugo,
+            quantidade=quantidade_int,
+            operador=request.user 
+        )
+
+        return JsonResponse({'status': 'sucesso', 'mensagem': 'Refugo registrado com sucesso!'})
+
+    except Exception as e:
+        # Logar o erro aqui seria uma boa prática
+        print(f"Erro ao registrar refugo: {e}") 
+        return JsonResponse({'status': 'erro', 'mensagem': 'Erro interno ao registrar refugo.'}, status=500)

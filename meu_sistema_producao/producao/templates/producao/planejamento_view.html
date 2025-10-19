@@ -259,8 +259,6 @@
             let selectedMachineId = null;
             let plannedOps = {};
             
-            const todosOsIdsAgendados = new Set({{ todos_ids_agendados|safe }});
-            
             // ===================================================================
             // NOVA FUNÇÃO DE ALINHAMENTO
             // ===================================================================
@@ -276,10 +274,13 @@
             // CARREGAMENTO DOS DADOS INICIAIS (VINDO DO DJANGO)
             // =================================================================
             const agendamentosIniciais = {{ agendamentos_iniciais|safe }};
+
+            // [CORREÇÃO 2]
+            // Passa o objeto 'agendamento' INTEIRO para o array
             agendamentosIniciais.forEach(agendamento => {
                 const key = 'maquina_' + agendamento.maquinaId;
                 if (!plannedOps[key]) { plannedOps[key] = []; }
-                plannedOps[key].push({ opId: agendamento.opId, day: agendamento.day, hour: agendamento.hour, duration: agendamento.duration });
+                plannedOps[key].push(agendamento);
             });
             console.log("Agendamentos iniciais carregados:", plannedOps);
     
@@ -346,6 +347,18 @@
                     for (let day = 0; day < 7; day++) {
                         const daySlot = document.createElement('div');
                         daySlot.className = 'hourly-slot';
+                        const dropLeft = document.createElement('div');
+                        dropLeft.className = 'drop-zone drop-left'; // Classe para estilizar e identificar
+                        dropLeft.dataset.side = 'L'; // Identificador para o drop
+                        dropLeft.style.cssText = 'width: 50%; height: 100%; float: left; border-right: 1px dashed #555;'; // Estilo básico
+
+                        const dropRight = document.createElement('div');
+                        dropRight.className = 'drop-zone drop-right'; // Classe para estilizar e identificar
+                        dropRight.dataset.side = 'R'; // Identificador para o drop
+                        dropRight.style.cssText = 'width: 50%; height: 100%; float: right;'; // Estilo básico
+
+                        daySlot.appendChild(dropLeft);
+                        daySlot.appendChild(dropRight);
                         timeRow.appendChild(daySlot);
                     }
                     timeGridContainer.appendChild(timeRow);
@@ -363,48 +376,124 @@
             
                 // --- FASE 1: RESET GERAL ---
                 // Pega TODOS os IDs de OPs que estão agendadas em QUALQUER máquina
-                document.querySelectorAll('.production-card').forEach(card => {
-                    card.style.cssText = '';
-                    card.style.display = ''; // Garante que fiquem visíveis para a próxima etapa
+                document.querySelectorAll('.cloned-op-card').forEach(clone => clone.remove());
+            
+                // 1b. Pega todos os cartões ORIGINAIS (que estão na grade) e os move de volta para a lista
+                grid.querySelectorAll('.production-card:not(.cloned-op-card)').forEach(card => {
+                    card.style.cssText = ''; // Reseta COMPLETAMENTE o estilo (posição, tamanho, etc.)
+                    card.style.display = ''; // Garante que seja visível na lista
                     productionOrdersContainer.appendChild(card);
                 });
             
-                // --- FASE 2: RENDERIZAR A MÁQUINA SELECIONADA ---
+                // --- FASE 2: RENDERIZAR A MÁQUINA SELECIONADA (COM LADO L/R) ---
                 const opsDaMaquinaSelecionada = plannedOps['maquina_' + selectedMachineId] || [];
                 const gridRect = grid.getBoundingClientRect();
             
                 opsDaMaquinaSelecionada.forEach(agendamento => {
-                    const card = document.querySelector(`.production-card[data-op-id='${agendamento.opId}']`);
-                    if (card) {
-                        const duration = parseFloat(card.dataset.duration);
-                        if (!isNaN(duration)) {
-                            const cardTop = agendamento.hour * ALTURA_DA_LINHA;
-                            const cardHeight = duration * ALTURA_DA_LINHA;
+                    // Encontra o cartão ORIGINAL na lista da esquerda (productionOrdersContainer)
+                    const cardOriginal = productionOrdersContainer.querySelector(`.production-card[data-op-id='${agendamento.opId}']`);
+                    
+                    if (cardOriginal) {
+                        let totalDuration = parseFloat(cardOriginal.dataset.duration);
+                        if (isNaN(totalDuration)) return; // Pula se a duração não for válida
+
+                        let remainingDuration = totalDuration;
+                        let currentDay = agendamento.day;
+                        let currentHour = agendamento.hour;
+                        let isOriginalCard = true; // O primeiro bloco a ser renderizado usará o cartão original
+
+                        // Loop: Continua enquanto houver duração restante E não passar de Domingo (dia 6)
+                        while (remainingDuration > 0 && currentDay < 7) { 
+                            
+                            // Calcula quantas horas faltam para acabar o dia atual
+                            const hoursLeftInDay = 24 - currentHour;
+                            
+                            // O tamanho deste bloco é o MENOR valor entre o que falta da OP e o que falta no dia
+                            const blockDuration = Math.min(remainingDuration, hoursLeftInDay);
+                            
+                            if (blockDuration <= 0) break; // Segurança para evitar loops infinitos
+
+                            // --- INÍCIO DA MODIFICAÇÃO (Lógica Lado L/R) ---
+
+                            // 1. Cálculos de Posição Vertical e Largura da Coluna
+                            const cardTop = currentHour * ALTURA_DA_LINHA;
+                            const cardHeight = blockDuration * ALTURA_DA_LINHA;
                             const dayColumnWidth = (gridRect.width - LARGURA_LABEL_HORA) / 7;
-                            const cardLeft = LARGURA_LABEL_HORA + (agendamento.day * dayColumnWidth);
-                            const cardWidth = dayColumnWidth - 4; // Pequena margem
-            
-                            card.style.position = 'absolute';
-                            card.style.zIndex = '10';
-                            card.style.top = `${cardTop}px`;
-                            card.style.height = `${cardHeight}px`;
-                            card.style.left = `${cardLeft}px`;
-                            card.style.width = `${cardWidth}px`;
-                            grid.appendChild(card);
+
+                            // 2. Calcula a LARGURA do cartão (50% do dia, menos uma margem)
+                            const cardWidth = (dayColumnWidth / 2) - 4; // -4 para margem
+
+                            // 3. Calcula a POSIÇÃO 'left' (horizontal) baseada no Lado
+                            let cardLeft;
+                            const halfColumnWidth = dayColumnWidth / 2;
+                            const dayStartLeft = LARGURA_LABEL_HORA + (currentDay * dayColumnWidth);
+
+                            // **IMPORTANTE**: O 'agendamento' DEVE ter a propriedade 'lado' ('L' ou 'R')
+                            if (agendamento.lado === 'R') {
+                                // Lado Direito: começa na metade da coluna do dia
+                                cardLeft = dayStartLeft + halfColumnWidth;
+                            } else {
+                                // Lado Esquerdo (ou padrão): começa no início da coluna do dia
+                                cardLeft = dayStartLeft; 
+                            }
+                            // --- FIM DA MODIFICAÇÃO ---
+
+                            let cardToRender;
+                            
+                            if (isOriginalCard) {
+                                // O primeiro bloco é o cartão original (movido da lista)
+                                cardToRender = cardOriginal;
+                                isOriginalCard = false; // Os próximos serão clones
+                            } else {
+                                // Os blocos seguintes (em outros dias) são clones
+                                cardToRender = cardOriginal.cloneNode(true);
+                                cardToRender.classList.add('cloned-op-card'); // Marca como clone para ser removido no RESET
+                            }
+
+                            // Aplica os estilos de posicionamento e tamanho
+                            cardToRender.style.display = '';
+                            cardToRender.style.position = 'absolute';
+                            cardToRender.style.zIndex = '10';
+                            cardToRender.style.top = `${cardTop}px`;
+                            cardToRender.style.height = `${cardHeight}px`;
+                            cardToRender.style.left = `${cardLeft}px`;  // Posição 'left' atualizada
+                            cardToRender.style.width = `${cardWidth}px`; // Largura 'width' atualizada
+                            
+                            // Adiciona o cartão (original ou clone) à grade
+                            cardToRender.dataset.agendamentoId = agendamento.id;
+                            grid.appendChild(cardToRender);
+
+                            // Prepara a próxima iteração do loop
+                            remainingDuration -= blockDuration; // Subtrai a duração que acabamos de renderizar
+                            currentDay += 1;                  // Move para o próximo dia
+                            currentHour = 0;                  // O próximo bloco começará às 00:00 (topo do dia)
                         }
                     }
                 });
             
                 // --- FASE 3: ESCONDER OPS JÁ PLANEJADAS DA LISTA ---
                 // Agora que a grade está pronta, escondemos da lista da esquerda os cartões que já estão agendados
-                todosOsIdsAgendados.forEach(opId => {
+                const todosOsIdsAgendadosAtualmente = new Set();
+            
+                // Itera sobre TODAS as OPs em TODAS as máquinas
+                Object.values(plannedOps).forEach(opsDaMaquina => {
+                    opsDaMaquina.forEach(agendamento => {
+                        // Adiciona o ID da ORDEM (opId) ao Set
+                        todosOsIdsAgendadosAtualmente.add(agendamento.opId);
+                    });
+                });
+
+                // Esconde os cartões que estão no Set
+                todosOsIdsAgendadosAtualmente.forEach(opId => {
                     const cardNaLista = productionOrdersContainer.querySelector(`.production-card[data-op-id='${opId}']`);
                     if (cardNaLista) {
                         cardNaLista.style.display = 'none';
                     }
+                    
                 });
-                
+
                 setupNewDragAndDrop();
+
             }            
             
             
@@ -469,17 +558,34 @@
                     const opId = event.dataTransfer.getData('text/plain');
                     const duration = parseFloat(event.dataTransfer.getData('duration'));
                     if (isNaN(duration)) return;
-            
-                    const timeRow = event.target.closest('.time-row');
-                    if (!timeRow) return;
-            
+
+                    const dropZone = event.target.closest('.drop-zone');
+                    if (!dropZone) return; // Não soltou em uma zona válida
+
+                    const dropSide = dropZone.dataset.side; // Será 'L' ou 'R'
+                    const timeRow = dropZone.closest('.time-row');
+                    if (!timeRow) return; // Não soltou na linha do tempo
+
                     const allRows = Array.from(grid.children).filter(child => child.classList.contains('time-row'));
                     const startHour = allRows.indexOf(timeRow);
                     
+                    // --- INÍCIO DA CORREÇÃO ---
+                    
+                    // 1. Encontra o 'pai' do 'dropZone', que é o '.hourly-slot'
+                    const parentSlot = dropZone.closest('.hourly-slot');
+                    
+                    // 2. Pega todos os filhos diretos da 'timeRow' (incluindo o time-label)
                     const rowChildren = Array.from(timeRow.children);
-                    const startDay = rowChildren.indexOf(event.target) - 1;
+                    
+                    // 3. Encontra o índice do 'parentSlot' na lista de filhos
+                    //    e subtrai 1 para pular o 'time-label' (que está no índice 0)
+                    const startDay = rowChildren.indexOf(parentSlot) - 1;
             
-                    if (startDay < 0 || startHour < 0) return;
+                    if (startDay < 0 || startHour < 0) {
+                        console.error("Falha ao calcular dia/hora.", { startDay, startHour });
+                        return; // Esta verificação agora funcionará corretamente
+                    }
+                    
             
                     const dataDoAgendamento = new Date(currentMonday);
                     dataDoAgendamento.setDate(currentMonday.getDate() + startDay);
@@ -488,18 +594,28 @@
                     fetch("{% url 'salvar_agendamento_api' %}", {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
-                        body: JSON.stringify({ op_id: opId, maquina_id: selectedMachineId, start_date: dataFormatada, start_hour: startHour })
+                        body: JSON.stringify({ op_id: opId, maquina_id: selectedMachineId, start_date: dataFormatada, start_hour: startHour, lado: dropSide })
                     })
                     .then(response => response.json())
                     .then(data => {
-                        if (data.status === 'sucesso') {
+                        if (data.status === 'sucesso' && data.agendamento) { // Verifica se a API retornou o objeto
+                            
+                            // [CORREÇÃO 4]
                             // ATUALIZA O ESTADO LOCAL
                             if (!plannedOps['maquina_' + selectedMachineId]) plannedOps['maquina_' + selectedMachineId] = [];
-                            plannedOps['maquina_' + selectedMachineId] = plannedOps['maquina_' + selectedMachineId].filter(op => op.opId != opId);
-                            plannedOps['maquina_' + selectedMachineId].push({ opId: parseInt(opId), day: startDay, hour: startHour, duration: duration });
-                            todosOsIdsAgendados.add(parseInt(opId));
+                            
+                            // Remove qualquer agendamento anterior *dessa mesma OP*
+                            // (Se a lógica permitir mover uma OP já agendada)
+                            // plannedOps['maquina_' + selectedMachineId] = plannedOps['maquina_' + selectedMachineId].filter(op => op.opId != opId);
+
+                            // Adiciona o NOVO objeto de agendamento (vindo da API)
+                            plannedOps['maquina_' + selectedMachineId].push(data.agendamento);
+                            
+                            // A FASE 3 agora cuida de esconder o item da lista
+                            
                             // CHAMA A FUNÇÃO MESTRE PARA REDESENHAR TUDO
                             atualizarVisualizacao();
+
                         } else {
                             alert('Erro ao salvar: ' + data.mensagem);
                         }
@@ -526,8 +642,7 @@
                     document.querySelectorAll('.machine-selector button').forEach(btn => btn.classList.remove('selected'));
                     target.classList.add('selected');
                     
-                    // CORREÇÃO: Não recriamos a grade, apenas atualizamos a visualização das OPs.
-                    atualizarVisualizacao(); 
+                    atualizarVisualizacao();
                 }
             });
     
@@ -541,14 +656,15 @@
             const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
             const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
 
-            // Variável para guardar o ID da OP a ser removida
-            let opIdParaRemover = null;
-
-
+            // [MODIFICADO] Variáveis para guardar os IDs
+            let opIdParaTexto = null; // Apenas para mostrar "OP-123" no modal
+            let agendamentoIdParaRemover = null; // O ID único do agendamento
 
             // Função para ABRIR o modal de confirmação
-            function openConfirmModal(opId) {
-                opIdParaRemover = opId; // Guarda o ID da OP
+            function openConfirmModal(opId, agendamentoId) {
+                opIdParaTexto = opId; // Guarda o ID da OP (para o texto)
+                agendamentoIdParaRemover = agendamentoId; // Guarda o ID único do agendamento
+                
                 confirmModalText.innerHTML = `Você tem certeza que deseja remover a <strong class="text-white">OP-${opId}</strong> do planejamento?`;
                 confirmModal.classList.remove('hidden');
                 confirmModal.classList.add('flex');
@@ -558,7 +674,8 @@
             function closeConfirmModal() {
                 confirmModal.classList.add('hidden');
                 confirmModal.classList.remove('flex');
-                opIdParaRemover = null; // Limpa o ID
+                opIdParaTexto = null; 
+                agendamentoIdParaRemover = null; // Limpa o ID do agendamento
             }
 
             // 1. O "ouvinte" principal na grade de planejamento
@@ -566,7 +683,16 @@
                 const clickedCard = event.target.closest('.production-card');
                 if (clickedCard) {
                     const opId = parseInt(clickedCard.dataset.opId);
-                    openConfirmModal(opId); // Em vez de 'confirm()', abre nosso modal
+                    
+                    // [NOVO] Pega o ID único do agendamento (adicionado no Passo 1)
+                    const agendamentoId = parseInt(clickedCard.dataset.agendamentoId); 
+                    
+                    if (!agendamentoId) {
+                        console.error('Erro: O cartão clicado não possui um "data-agendamento-id". Verifique a FASE 2 de renderização.');
+                        return;
+                    }
+                    
+                    openConfirmModal(opId, agendamentoId); // Passa ambos os IDs
                 }
             });
 
@@ -577,22 +703,32 @@
 
             // 3. Ação do botão "Sim, Remover" (o principal)
             confirmDeleteBtn.addEventListener('click', () => {
-                if (!opIdParaRemover) return;
+                if (!agendamentoIdParaRemover) return; // Verifica o ID do agendamento
 
                 fetch("{% url 'remover_agendamento_api' %}", {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
-                    body: JSON.stringify({ op_id: opIdParaRemover })
+                    
+                    // [MODIFICADO] Envia o ID único do agendamento
+                    body: JSON.stringify({ agendamento_id: agendamentoIdParaRemover }) 
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'sucesso') {
-                        // Atualiza o estado local
-                        if (plannedOps['maquina_' + selectedMachineId]) {
-                            plannedOps['maquina_' + selectedMachineId] = plannedOps['maquina_' + selectedMachineId].filter(op => op.opId !== opIdParaRemover);
-                        }
-                        // Redesenha a grade
+                        
+                        // 1. Atualiza o estado local (plannedOps)
+                        // Itera sobre todas as máquinas e remove o agendamento pelo ID
+                        Object.keys(plannedOps).forEach(keyMaquina => {
+                            plannedOps[keyMaquina] = plannedOps[keyMaquina].filter(
+                                // Assumindo que o objeto se chama 'agendamento.id'
+                                agendamento => agendamento.id !== agendamentoIdParaRemover
+                            );
+                        });
+                        
+                        // 2. Redesenha tudo. A FASE 3 (modificada) cuidará
+                        // de fazer o cartão reaparecer na lista da esquerda.
                         atualizarVisualizacao();
+
                     } else {
                         alert('Erro ao remover agendamento: ' + data.mensagem);
                     }

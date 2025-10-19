@@ -25,4 +25,6 @@ urlpatterns = [
     path('api/producao/registrar_parada/', views.registrar_parada_api, name='registrar_parada_api'),
     path('api/producao/finalizar_op/', views.finalizar_op_api, name='finalizar_op_api'),
     path('api/producao/get_tipos_parada/', views.get_tipos_parada_api, name='get_tipos_parada_api'),
+    path('api/get_tipos_refugo/', views.get_tipos_refugo_api, name='get_tipos_refugo_api'),
+    path('api/registrar_refugo/', views.registrar_refugo_api, name='registrar_refugo_api'),
 ]

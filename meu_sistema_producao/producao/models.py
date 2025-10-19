@@ -106,6 +106,16 @@ class Agendamento(models.Model):
     maquina = models.ForeignKey(Maquina, on_delete=models.CASCADE, verbose_name="Máquina")
     start_datetime = models.DateTimeField(verbose_name="Início do Agendamento")
     end_datetime = models.DateTimeField(verbose_name="Fim do Agendamento")
+    LADO_CHOICES = (
+        ('L', 'Esquerdo'),
+        ('R', 'Direito'),
+    )
+    lado = models.CharField(
+        max_length=1, 
+        choices=LADO_CHOICES, 
+        null=True, 
+        blank=True
+    )
     def __str__(self):
         return f"{self.ordem_producao} na {self.maquina} em {self.start_datetime.strftime('%d/%m/%Y %H:%M')}"
     class Meta:
@@ -146,3 +156,28 @@ class Parada(models.Model):
         if self.tipo_parada:
             return f"Parada na OP {self.agendamento.ordem_producao.id}: {self.tipo_parada.descricao}"
         return f"Parada na OP {self.agendamento.ordem_producao.id}: (Tipo não definido)"
+
+class TipoRefugo(models.Model):
+    codigo = models.CharField(max_length=20, unique=True, verbose_name="Código do Refugo")
+    descricao = models.CharField(max_length=255, verbose_name="Descrição")
+
+    def __str__(self):
+        return f"{self.codigo} - {self.descricao}"
+
+    class Meta:
+        verbose_name = "Tipo de Refugo"
+        verbose_name_plural = "Tipos de Refugo"
+
+class Refugo(models.Model):
+    agendamento = models.ForeignKey(Agendamento, on_delete=models.CASCADE, related_name="refugos")
+    tipo_refugo = models.ForeignKey(TipoRefugo, on_delete=models.PROTECT, verbose_name="Tipo de Refugo") # PROTECT evita excluir um tipo se ele já foi usado
+    quantidade = models.IntegerField(verbose_name="Quantidade Refugada")
+    data_apontamento = models.DateTimeField(auto_now_add=True, verbose_name="Data do Apontamento")
+    operador = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.quantidade} un. refugo ({self.tipo_refugo.codigo}) na OP {self.agendamento.ordem_producao.id}"
+
+    class Meta:
+        verbose_name = "Apontamento de Refugo"
+        verbose_name_plural = "Apontamentos de Refugo"

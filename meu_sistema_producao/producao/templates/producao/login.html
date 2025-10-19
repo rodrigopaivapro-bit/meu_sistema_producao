@@ -21,11 +21,23 @@
             gap: 0.75rem;               /* Cria um espaço entre a imagem e o campo de texto (12px) */
             margin-bottom: 1rem;        /* Mantém um espaço abaixo do captcha */
         }
-    
-        /* Regra para o CAMPO DE TEXTO dentro do container do CAPTCHA */
-        .captcha-container input[type="text"] {
-            /* Aplica exatamente os mesmos estilos dos outros campos para consistência */
-            @apply w-full bg-white text-black border border-gray-300 rounded-lg px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors;
+        
+        /* Regra para a IMAGEM dentro do container do CAPTCHA */
+        .captcha-container .captcha { /* Seletor atualizado e mais específico */
+        width: 220px;  /* <<< Ajuste este valor como preferir */
+        height: auto;  /* <<< Mantém a proporção da imagem */
+        }
+
+        #id_captcha_1 {
+            color: black; /* Define a cor do texto para preto */
+            width: 100%;
+            background-color: white;
+            border: 1px solid #d1d5db; /* Equivalente a border-gray-300 */
+            border-radius: 0.5rem;      /* Equivalente a rounded-lg */
+            padding-top: 0.75rem;       /* Equivalente a py-3 */
+            padding-bottom: 0.75rem;    /* Equivalente a py-3 */
+            padding-left: 1rem;         /* Equivalente a px-4 */
+            padding-right: 1rem;        /* Equivalente a px-4 */
         }
     </style>
 </head>

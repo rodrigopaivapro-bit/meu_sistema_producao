@@ -55,35 +55,45 @@
 
         <!-- Conteúdo Principal -->
         <main id="production-content" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Coluna da OP Atual -->
             <div class="lg:col-span-2 bg-gray-800 rounded-xl shadow-2xl p-8 border border-gray-700">
                 <h2 class="text-3xl font-bold text-blue-400 border-b border-gray-600 pb-4 mb-6">Ordem em Produção</h2>
-                <div id="current-op-card" class="space-y-6">
-                    <!-- Conteúdo dinâmico da OP em produção -->
-                     <div class="text-center py-10 text-gray-500">Nenhuma OP em produção. Inicie a próxima OP.</div>
-                </div>
-            </div>
-
-            <!-- Coluna da Próxima OP e Ações -->
-            <div class="space-y-8">
-                <div class="bg-gray-800 rounded-xl shadow-2xl p-6 border border-gray-700">
-                    <h2 class="text-2xl font-semibold text-gray-300 border-b border-gray-600 pb-3 mb-4">Próxima Ordem</h2>
-                    <div id="next-op-card" class="space-y-2">
-                         <!-- Conteúdo dinâmico da próxima OP -->
-                         <div class="text-center py-4 text-gray-500">Nenhuma OP planejada.</div>
+                
+                <div id="current-op-card" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div id="current-op-L" class="border border-gray-700 rounded-lg p-4 bg-gray-900">
+                        <div class="text-center py-10 text-gray-500">Lado Esquerdo Vazio</div>
+                    </div>
+                    <div id="current-op-R" class="border border-gray-700 rounded-lg p-4 bg-gray-900">
+                        <div class="text-center py-10 text-gray-500">Lado Direito Vazio</div>
                     </div>
                 </div>
-                 <div class="bg-gray-800 rounded-xl shadow-2xl p-6 border border-gray-700">
+            </div>
+        
+            <div class="space-y-8"> 
+        
+                <div class="bg-gray-800 rounded-xl shadow-2xl p-6 border border-gray-700">
+                    <h2 class="text-2xl font-semibold text-gray-300 border-b border-gray-600 pb-3 mb-4">Próxima Ordem</h2>
+                    
+                    <div id="next-op-card" class="space-y-4">
+                        <div id="next-op-L" class="border-b border-gray-700 pb-2">
+                            <div class="text-center text-gray-500">Lado E Vazio</div>
+                        </div>
+                        <div id="next-op-R">
+                            <div class="text-center text-gray-500">Lado D Vazio</div>
+                        </div>
+                    </div>
+                </div>
+        
+                <div class="bg-gray-800 rounded-xl shadow-2xl p-6 border border-gray-700">
                     <h2 class="text-2xl font-semibold text-gray-300 border-b border-gray-600 pb-3 mb-4">Ações</h2>
-                     <div class="space-y-4">
-                        <button id="btn-start" class="btn btn-green w-full text-xl"><i class="fas fa-play mr-2"></i> Iniciar OP</button>
+                    <div class="space-y-4">
+                        <button id="btn-start" class="btn btn-green w-full text-xl"><i class="fas fa-play mr-2"></i> Iniciar próxima ordem</button>
                         <button id="btn-report" class="btn btn-blue w-full text-xl"><i class="fas fa-check-double mr-2"></i> Apontar Produção</button>
                         <button id="btn-stop" class="btn btn-yellow w-full text-xl"><i class="fas fa-pause-circle mr-2"></i> Registrar Parada</button>
                         <button id="btn-finish" class="btn btn-red w-full text-xl"><i class="fas fa-flag-checkered mr-2"></i> Finalizar OP</button>
                     </div>
                 </div>
-            </div>
-        </main>
+        
+            </div> </main>
     </div>
 
     <!-- Modal de Apontamento -->
@@ -130,6 +140,44 @@
             </div>
         </div>
     </div>
+
+    <div id="confirmFinishModal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-xl p-8 border border-gray-700 shadow-2xl w-full max-w-md text-center">
+            <h3 class="text-2xl font-bold text-red-400 mb-6">Confirmar Finalização</h3>
+            <p id="confirmFinishModalText" class="text-gray-300 text-lg mb-8">
+                Tem certeza que deseja finalizar esta OP?
+            </p>
+            <div class="flex gap-4 mt-8">
+                <button id="cancel-finish" class="btn bg-gray-600 hover:bg-gray-500 w-full">Cancelar</button>
+                <button id="confirm-finish" class="btn btn-red w-full">Sim, Finalizar</button>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<div id="scrapModal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center z-50">
+    <div class="bg-gray-800 rounded-xl p-8 border border-gray-700 shadow-2xl w-full max-w-lg">
+        <h3 class="text-2xl font-bold text-orange-400 mb-6">Registrar Refugo (Scrap)</h3>
+        <div class="space-y-6">
+            <div>
+                <label for="scrap-reason-select" class="block text-lg text-gray-300 mb-2">Motivo do Refugo:</label>
+                <select id="scrap-reason-select" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-lg text-white focus:outline-none focus:border-orange-500">
+                    <option value="">Carregando motivos...</option>
+                </select>
+            </div>
+            
+            <div>
+                <label for="scrap-quantity-input" class="block text-lg text-gray-300 mb-2">Quantidade Refugada:</label>
+                <input type="number" id="scrap-quantity-input" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-2xl text-white text-center focus:outline-none focus:border-orange-500">
+            </div>
+        </div>
+        <div class="flex gap-4 mt-8">
+            <button id="cancel-scrap" class="btn bg-gray-600 hover:bg-gray-500 w-full">Cancelar</button>
+            <button id="confirm-scrap" class="btn bg-orange-500 hover:bg-orange-600 w-full">Confirmar Refugo</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -137,8 +185,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Estado da aplicação
     let selectedMachineId = null;
-    let currentOp = null;
-    let nextOp = null;
+    let opsEmProducao = []; // <<< CORRIGIDO
+    let proximasOps = [];
 
     // Elementos do DOM
     const machineSelector = document.getElementById('machine-selector');
@@ -167,6 +215,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelStopBtn = document.getElementById('cancel-stop');
     const confirmStopBtn = document.getElementById('confirm-stop');
     const csrfToken = '{{ csrf_token }}';
+    const confirmFinishModal = document.getElementById('confirmFinishModal');
+    const confirmFinishModalText = document.getElementById('confirmFinishModalText');
+    const cancelFinishBtn = document.getElementById('cancel-finish');
+    const confirmFinishBtn = document.getElementById('confirm-finish');
+    const scrapModal = document.getElementById('scrapModal');
+    const scrapReasonSelect = document.getElementById('scrap-reason-select');
+    const scrapQuantityInput = document.getElementById('scrap-quantity-input');
+    const cancelScrapBtn = document.getElementById('cancel-scrap');
+    const confirmScrapBtn = document.getElementById('confirm-scrap');
+
+    let opParaFinalizar = null;
 
     function showToast(message) {
         const toast = document.createElement('div');
@@ -190,84 +249,158 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3000);
     }
 
+    function openConfirmFinishModal(op) {
+        if (!op) return;
+        opParaFinalizar = op;
+        confirmFinishModalText.innerHTML = `Tem certeza que deseja finalizar a <strong class="text-white">OP-${op.op_id} (Lado ${op.lado})</strong>?`;
+        confirmFinishModal.classList.remove('hidden');
+        confirmFinishModal.classList.add('flex');
+    }
+
+    function closeConfirmFinishModal() {
+        confirmFinishModal.classList.add('hidden');
+        confirmFinishModal.classList.remove('flex');
+        opParaFinalizar = null;
+    }
+
+    function openScrapModal() {
+        // Limpa os campos antes de abrir
+        scrapReasonSelect.innerHTML = '<option value="">Carregando motivos...</option>';
+        scrapQuantityInput.value = '';
+        scrapReasonSelect.disabled = true;
+        
+        scrapModal.classList.remove('hidden');
+        scrapModal.classList.add('flex');
+
+        // Busca os tipos de refugo (implementaremos o fetch na próxima etapa)
+    }
+
+    function closeScrapModal() {
+        scrapModal.classList.add('hidden');
+        scrapModal.classList.remove('flex');
+        // Limpa o ID do agendamento do botão confirmar (importante!)
+        delete confirmScrapBtn.dataset.agendamentoId; 
+    }
+
     // --- FUNÇÕES DE RENDERIZAÇÃO ---
     function renderCurrentOp() {
-        if (currentOp) {
-            const percentage = (currentOp.quantidade_produzida / currentOp.quantidade_total) * 100;
-            
-            currentOpCard.innerHTML = `
-                <!-- Bloco de Identificação Principal -->
-                <div class="text-center mb-6">
-                    <span class="text-5xl font-bold text-white">OP-${currentOp.op_id}</span>
-                    <p class="text-2xl text-gray-400">${currentOp.pn_code} - ${currentOp.description || 'Sem descrição'}</p>
+        // Pega os slots L/R que você criou no Passo 1
+        const slotL = document.getElementById('current-op-L');
+        const slotR = document.getElementById('current-op-R');
+    
+        // Encontra as OPs L e R no array 'opsEmProducao'
+        const opL = opsEmProducao.find(op => op.lado === 'L');
+        const opR = opsEmProducao.find(op => op.lado === 'R');
+    
+        // Função interna para gerar o HTML de um cartão de OP
+        function getOpCardHtml(op) {
+            // Se não houver OP, retorna o texto de "Vazio"
+            if (!op) {
+                const ladoTexto = (this.slot === slotL) ? 'Esquerdo' : 'Direito';
+                return `<div class="text-center py-10 text-gray-500">Lado ${ladoTexto} Vazio</div>`;
+            }
+    
+            const percentage = (op.quantidade_produzida / op.quantidade_total) * 100;
+    
+            // IMPORTANTE:
+            // 1. Adicionamos os botões de ação (Apontar, Parar, Finalizar) DENTRO do cartão
+            // 2. Adicionamos 'data-agendamento-id' para sabermos em qual OP clicar
+            return `
+            <div class="op-card-running space-y-4" data-agendamento-id="${op.agendamento_id}">
+                <div class="text-center">
+                    <span class="text-3xl font-bold text-white">OP-${op.op_id} (Lado ${op.lado})</span>
+                    <p class="text-xl text-gray-400">${op.pn_code}</p>
+                    <p class="text-lg text-gray-500">${op.description || 'Sem descrição'}</p> 
                 </div>
 
-                <!-- Bloco de Detalhes Técnicos em Grade -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center border-t border-b border-gray-700 py-6 mb-6">
+                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-center border-t border-b border-gray-700 py-3 text-sm">
                     <div>
-                        <p class="text-sm text-gray-400 font-semibold uppercase">Capacidade</p>
-                        <p class="text-2xl font-bold text-white">${currentOp.capacity_liters || 'N/A'} L</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-400 font-semibold uppercase">Tempo de Ciclo</p>
-                        <p class="text-2xl font-bold text-white">${currentOp.cycle_time_seconds || 'N/A'} s</p>
+                        <p class="text-xs text-gray-400 font-semibold uppercase">Capacidade</p>
+                        <p class="font-bold text-white">${op.capacity_liters || 'N/A'} L</p>
                     </div>
                     <div>
-                        <p class="text-sm text-gray-400 font-semibold uppercase">Peso Solda</p>
-                        <p class="text-2xl font-bold text-white">${currentOp.sold_weight_kg || 'N/A'} kg</p>
+                        <p class="text-xs text-gray-400 font-semibold uppercase">Ciclo</p>
+                        <p class="font-bold text-white">${op.cycle_time_seconds || 'N/A'} s</p>
                     </div>
                     <div>
-                        <p class="text-sm text-gray-400 font-semibold uppercase">Peso Mínimo</p>
-                        <p class="text-2xl font-bold text-white">${currentOp.min_weight_kg || 'N/A'} kg</p>
+                        <p class="text-xs text-gray-400 font-semibold uppercase">Peso Mín</p>
+                        <p class="font-bold text-white">${op.min_weight_kg || 'N/A'} g</p>
                     </div>
                     <div>
-                        <p class="text-sm text-gray-400 font-semibold uppercase">Peso Máximo</p>
-                        <p class="text-2xl font-bold text-white">${currentOp.max_weight_kg || 'N/A'} kg</p>
+                        <p class="text-xs text-gray-400 font-semibold uppercase">Peso Máx</p>
+                        <p class="font-bold text-white">${op.max_weight_kg || 'N/A'} g</p>
                     </div>
-                     <div>
-                        <p class="text-sm text-gray-400 font-semibold uppercase">Status</p>
-                        <p class="text-2xl font-bold text-white">${currentOp.status || 'N/A'}</p>
+                     <div class="col-span-2"> <p class="text-xs text-gray-400 font-semibold uppercase">Status</p>
+                        <p class="font-bold text-white">${op.status || 'N/A'}</p>
                     </div>
-                </div>
-
-                <!-- Bloco de Progresso -->
+                    </div>
                 <div>
-                    <div class="flex justify-between items-end mb-2">
-                        <span class="text-lg font-semibold text-gray-300">Progresso:</span>
-                        <span class="text-2xl font-bold text-blue-300">
-                            ${currentOp.quantidade_produzida} / ${currentOp.quantidade_total}
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-sm font-semibold text-gray-300">Progresso:</span>
+                        <span class="text-lg font-bold text-blue-300">
+                            ${op.quantidade_produzida} / ${op.quantidade_total}
                         </span>
                     </div>
-                    <div class="w-full bg-gray-700 rounded-full h-8 border-2 border-gray-600">
-                        <div class="bg-blue-600 h-full rounded-full progress-bar-fill" style="width: ${percentage}%;"></div>
+                    <div class="w-full bg-gray-700 rounded-full h-4 border border-gray-600">
+                        <div class="bg-blue-600 h-full rounded-full" style="width: ${percentage}%;"></div>
                     </div>
-                    <div class="text-center mt-2 text-3xl font-bold text-white">${percentage.toFixed(1)}%</div>
+                    <div class="text-center mt-1 text-xl font-bold text-white">${percentage.toFixed(1)}%</div>
                 </div>
-            `;
-        } else {
-            currentOpCard.innerHTML = `<div class="text-center py-10 text-gray-500">Nenhuma OP em produção. Inicie a próxima OP.</div>`;
+
+                <div class="space-y-2 pt-4">
+                    <button class="btn btn-blue w-full btn-report-op text-sm py-2 px-3"><i class="fas fa-check-double mr-1"></i> Apontar Produção</button>
+                    <button class="btn btn-yellow w-full btn-stop-op text-sm py-2 px-3"><i class="fas fa-pause-circle mr-1"></i> Apontar Parada</button>
+                    <button class="btn bg-orange-500 hover:bg-orange-600 w-full btn-scrap-op text-sm py-2 px-3"><i class="fas fa-recycle mr-1"></i> Apontar Refugo</button>
+                    <button class="btn btn-red w-full btn-finish-op text-sm py-2 px-3"><i class="fas fa-flag-checkered mr-1"></i> Finalizar OP</button>
+                </div>
+            </div>
+        `;
         }
+    
+        // Renderiza os cartões L e R
+        // Usamos .call() para passar o contexto de qual slot está sendo preenchido
+        slotL.innerHTML = getOpCardHtml.call({slot: slotL}, opL); 
+        slotR.innerHTML = getOpCardHtml.call({slot: slotR}, opR);
     }
 
     function renderNextOp() {
-        if (nextOp) {
-            nextOpCard.innerHTML = `
-                <p class="text-xl font-bold text-white">OP-${nextOp.op_id}</p>
-                <p class="text-md text-gray-400">${nextOp.pn_code}</p>
-                <p class="text-md text-gray-400">${nextOp.quantidade_total} unidades</p>
+        const slotL = document.getElementById('next-op-L');
+        const slotR = document.getElementById('next-op-R');
+    
+        // Encontra as OPs L e R no array 'proximasOps'
+        const opL = proximasOps.find(op => op.lado === 'L');
+        const opR = proximasOps.find(op => op.lado === 'R');
+    
+        // Função interna para gerar o HTML
+        function getOpHtml(op, lado) {
+            if (!op) return `<div class="text-center text-gray-500">Lado ${lado} Vazio</div>`;
+            // Adicionamos a informação do horário 'op.inicio_agendado'
+            return `
+                <p class="text-lg font-bold text-white">Lado ${lado}: OP-${op.op_id}</p>
+                <p class="text-sm text-gray-400">${op.pn_code} (${op.quantidade_total} un)</p>
+                <p class="text-sm text-blue-300 font-semibold">Início: ${op.inicio_agendado}</p> 
             `;
-        } else {
-            nextOpCard.innerHTML = `<div class="text-center py-4 text-gray-500">Nenhuma OP planejada.</div>`;
         }
+    
+        slotL.innerHTML = getOpHtml(opL, 'L');
+        slotR.innerHTML = getOpHtml(opR, 'R');
     }
 
     function updateButtonStates() {
-        btnStart.disabled = !nextOp || !!currentOp;
-        btnReport.disabled = !currentOp;
-        btnStop.disabled = !currentOp;
-        btnFinish.disabled = !currentOp;
-    }
+        // Habilita "Iniciar" apenas se houver OPs "Próximas" E nenhuma OP "Em Produção"
+        btnStart.disabled = (proximasOps.length === 0) || (opsEmProducao.length > 0);
+        
+        // Desabilita os botões globais, pois as ações agora são por cartão
+        btnReport.disabled = true;
+        btnStop.disabled = true;
+        btnFinish.disabled = true;
 
+        // Esconde os botões globais que não fazem mais sentido
+        // (O botão "Iniciar OP" é o único global que mantemos)
+        btnReport.style.display = 'none';
+        btnStop.style.display = 'none';
+        btnFinish.style.display = 'none';
+    }
     // --- LÓGICA PRINCIPAL ---
     async function fetchMachineData(machineId) {
         if (!machineId) return;
@@ -276,8 +409,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) throw new Error('Falha ao buscar dados da máquina.');
             const data = await response.json();
             
-            currentOp = data.op_em_producao;
-            nextOp = data.proxima_op;
+            opsEmProducao = data.ops_em_producao || [];
+            proximasOps = data.proximas_ops || [];
             
             renderCurrentOp();
             renderNextOp();
@@ -308,30 +441,125 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- LÓGICA DOS BOTÕES DE AÇÃO ---
     btnStart.addEventListener('click', async () => {
-        if (!nextOp) return;
+        if (proximasOps.length === 0) return; // Não inicia se não houver próximas OPs
         try {
             const response = await fetch(`{% url 'iniciar_op_api' %}`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-                body: JSON.stringify({ op_id: nextOp.op_id })
+                // [MODIFICADO] Envia o ID da MÁQUINA
+                body: JSON.stringify({ maquina_id: selectedMachineId }) 
             });
-            if (!response.ok) throw new Error('Falha ao iniciar OP.');
-            await fetchMachineData(selectedMachineId);
+            if (!response.ok) throw new Error('Falha ao iniciar OPs.');
+            await fetchMachineData(selectedMachineId); // Recarrega os dados
         } catch (error) { console.error(error); alert(error.message); }
     });
 
-    btnFinish.addEventListener('click', async () => {
-        if (!currentOp) return;
-        if (!confirm(`Tem certeza que deseja finalizar a OP-${currentOp.op_id}?`)) return;
-        try {
-            const response = await fetch(`{% url 'finalizar_op_api' %}`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-                body: JSON.stringify({ op_id: currentOp.op_id })
-            });
-            if (!response.ok) throw new Error('Falha ao finalizar OP.');
-            await fetchMachineData(selectedMachineId);
-        } catch (error) { console.error(error); alert(error.message); }
+    // ===================================================================
+    // [NOVO - PASSO 5] LÓGICA DE AÇÕES (APONTAR, PARAR, FINALIZAR)
+    // ===================================================================
+
+    // Adiciona um "ouvinte" principal na área de OPs em produção
+    currentOpCard.addEventListener('click', async (e) => {
+        // Encontra o 'agendamentoId' do cartão pai mais próximo
+        const agendamentoId = e.target.closest('.op-card-running')?.dataset.agendamentoId;
+        if (!agendamentoId) return; // Não clicou em um botão de ação válido
+
+        // Ação: APONTAR
+        if (e.target.closest('.btn-report-op')) {
+            // Reutiliza o modal de apontamento
+            quantityInput.value = '';
+            reportModal.classList.remove('hidden');
+            reportModal.classList.add('flex');
+            quantityInput.focus();
+            
+            // Armazena temporariamente o ID do agendamento (L ou R) no botão de confirmação
+            confirmReportBtn.dataset.agendamentoId = agendamentoId;
+        }
+        
+        // Ação: PARAR
+        if (e.target.closest('.btn-stop-op')) {
+            // [CORREÇÃO] A lógica agora é direta, igual ao "Apontar"
+
+            // 1. Armazena o ID (L ou R) no botão de confirmação
+            confirmStopBtn.dataset.agendamentoId = agendamentoId;
+            
+            // 2. Limpa e prepara o modal (copiado de)
+            stopReasonSelect.innerHTML = '<option value="">Carregando motivos...</option>';
+            paradaInicioInput.value = '';
+            paradaFimInput.value = '';
+            stopReasonSelect.disabled = true;
+
+            // 3. Mostra o modal (copiado de)
+            stopModal.classList.remove('hidden');
+            stopModal.classList.add('flex');
+
+            // 4. Busca os motivos da parada (copiado de)
+            try {
+                const response = await fetch(`{% url 'get_tipos_parada_api' %}`);
+                if (!response.ok) throw new Error('Falha ao carregar motivos.');
+                const tiposParada = await response.json();
+
+                stopReasonSelect.innerHTML = '<option value="">-- Selecione um motivo --</option>';
+                tiposParada.forEach(tipo => {
+                    const option = document.createElement('option');
+                    option.value = tipo.id;
+                    option.textContent = `${tipo.codigo} - ${tipo.descricao}`;
+                    stopReasonSelect.appendChild(option);
+                });
+                stopReasonSelect.disabled = false;
+
+            } catch (error) {
+                console.error(error);
+                stopReasonSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+            }
+        }
+
+        // ===============================================
+        // [ADICIONE ESTE BLOCO AQUI]
+        // ===============================================
+        // Ação: SCRAP (Refugo)
+        if (e.target.closest('.btn-scrap-op')) {
+            // 1. Armazena o ID (L ou R) no botão de confirmação
+            confirmScrapBtn.dataset.agendamentoId = agendamentoId;
+            
+            // 2. Abre o modal (que já limpa os campos)
+            openScrapModal();
+
+            // 3. Busca os tipos de refugo (similar à busca de tipos de parada)
+            try {
+                // USA A NOVA URL DA API DE TIPOS DE REFUGO
+                const response = await fetch(`{% url 'get_tipos_refugo_api' %}`); 
+                if (!response.ok) throw new Error('Falha ao carregar motivos de refugo.');
+                const tiposRefugo = await response.json();
+
+                scrapReasonSelect.innerHTML = '<option value="">-- Selecione um motivo --</option>';
+                tiposRefugo.forEach(tipo => {
+                    const option = document.createElement('option');
+                    option.value = tipo.id;
+                    option.textContent = `${tipo.codigo} - ${tipo.descricao}`;
+                    scrapReasonSelect.appendChild(option);
+                });
+                scrapReasonSelect.disabled = false;
+
+            } catch (error) {
+                console.error("Erro ao buscar tipos de refugo:", error);
+                scrapReasonSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+            }
+        }
+        // ===================================================================
+        // [COLE O BLOCO NOVO AQUI]
+        // ===================================================================
+        // Ação: FINALIZAR (O bloco que faltava)
+        if (e.target.closest('.btn-finish-op')) {
+            const op = opsEmProducao.find(op => op.agendamento_id == agendamentoId);
+            if (op) {
+                openConfirmFinishModal(op); // Apenas abre o modal
+            }
+        }
+        // ===================================================================
+        // [FIM DO BLOCO NOVO]
+        // ===================================================================
+
     });
 
     // --- LÓGICA DOS MODAIS ---
@@ -341,28 +569,108 @@ document.addEventListener('DOMContentLoaded', () => {
         reportModal.classList.add('flex');
         quantityInput.focus();
     });
+
     cancelReportBtn.addEventListener('click', () => reportModal.classList.add('hidden'));
-    confirmReportBtn.addEventListener('click', async () => {
+    confirmFinishBtn.addEventListener('click', async () => {
+        if (!opParaFinalizar) return;
+        
+        try {
+            // Esta é a lógica de 'fetch' que estava antes no clique do cartão
+            const response = await fetch(`{% url 'finalizar_op_api' %}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                body: JSON.stringify({ op_id: opParaFinalizar.op_id }) 
+            });
+            if (!response.ok) throw new Error('Falha ao finalizar OP.');
+            
+            await fetchMachineData(selectedMachineId); // Recarrega os dados
+            closeConfirmFinishModal(); // Fecha o modal
+        
+        } catch (error) { 
+            console.error(error); 
+            alert(error.message);
+            closeConfirmFinishModal(); // Fecha o modal mesmo se der erro
+        }
+    });
+    cancelScrapBtn.addEventListener('click', closeScrapModal);
+
+    confirmScrapBtn.addEventListener('click', async () => {
+        const agendamentoId = confirmScrapBtn.dataset.agendamentoId;
+        const tipoRefugoId = scrapReasonSelect.value;
+        const quantidade = scrapQuantityInput.value;
+
+        // Validações
+        if (!agendamentoId) {
+            alert("Erro: ID do agendamento não encontrado.");
+            return;
+        }
+        if (!tipoRefugoId) {
+            alert("Por favor, selecione o motivo do refugo.");
+            return;
+        }
+        if (!quantidade || parseInt(quantidade) <= 0) {
+            alert("Por favor, insira uma quantidade válida.");
+            return;
+        }
+
+        try {
+            // CHAMA A NOVA API DE REGISTRAR REFUGO
+            const response = await fetch(`{% url 'registrar_refugo_api' %}`, { 
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                body: JSON.stringify({ 
+                    agendamento_id: agendamentoId, 
+                    tipo_refugo_id: tipoRefugoId,
+                    quantidade: quantidade 
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.mensagem || 'Falha ao registrar refugo.');
+            }
+            
+            showToast('Refugo registrado com sucesso!');
+            closeScrapModal(); 
+            // Não precisa recarregar dados da máquina, a menos que queira exibir refugos
+
+        } catch (error) { 
+            console.error("Erro ao registrar refugo:", error); 
+            alert(error.message); 
+            // Não fecha o modal em caso de erro para o usuário corrigir
+        }
+    });
+    cancelFinishBtn.addEventListener('click', closeConfirmFinishModal);
+    confirmReportBtn.addEventListener('click', async () => { // <<< NOME CORRIGIDO
         const quantidade = quantityInput.value;
+        // Pega o ID (L ou R) que salvamos no botão
+        const agendamentoId = confirmReportBtn.dataset.agendamentoId;
+
         if (!quantidade || quantidade <= 0) {
             alert('Por favor, insira uma quantidade válida.');
             return;
         }
+        if (!agendamentoId) {
+            alert('Erro: ID do agendamento não encontrado.');
+            return;
+        }
         try {
-            const response = await fetch(`{% url 'apontar_producao_api' %}`, {
+            const response = await fetch(`{% url 'apontar_producao_api' %}`, { // <<< API CORRETA
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-                body: JSON.stringify({ agendamento_id: currentOp.agendamento_id, quantidade: quantidade })
+                body: JSON.stringify({ agendamento_id: agendamentoId, quantidade: quantidade })
             });
              if (!response.ok) throw new Error('Falha ao apontar produção.');
             const data = await response.json();
             
-            if (currentOp) {
-                currentOp.quantidade_produzida = data.nova_quantidade_produzida;
-                renderCurrentOp();
-                updateButtonStates();
+            // [CORREÇÃO] Atualiza o array 'opsEmProducao'
+            const opIndex = opsEmProducao.findIndex(op => op.agendamento_id == agendamentoId);
+            if (opIndex > -1) {
+                opsEmProducao[opIndex].quantidade_produzida = data.nova_quantidade_produzida;
+                renderCurrentOp(); // Redesenha os dois cartões
             }
             reportModal.classList.add('hidden');
+            delete confirmReportBtn.dataset.agendamentoId; // Limpa o ID
 
         } catch (error) { console.error(error); alert(error.message); }
     });
@@ -403,6 +711,9 @@ document.addEventListener('DOMContentLoaded', () => {
     cancelStopBtn.addEventListener('click', () => stopModal.classList.add('hidden'));   
 
     confirmStopBtn.addEventListener('click', async () => {
+        // [CORREÇÃO] Pega o ID (L ou R) que salvamos no botão
+        const agendamentoId = confirmStopBtn.dataset.agendamentoId;
+
         const tipoParadaId = stopReasonSelect.value;
         const inicioParada = paradaInicioInput.value;
         const fimParada = paradaFimInput.value;
@@ -414,13 +725,17 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('O horário de fim deve ser posterior ao de início.');
             return;
         }
+        if (!agendamentoId) {
+             alert('Erro: ID do agendamento não encontrado.');
+             return;
+        }
 
          try {
             const response = await fetch(`{% url 'registrar_parada_api' %}`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
                 body: JSON.stringify({ 
-                    agendamento_id: currentOp.agendamento_id, 
+                    agendamento_id: agendamentoId, // <<< VARIÁVEL CORRIGIDA
                     tipo_parada_id: tipoParadaId,
                     inicio_parada: inicioParada,
                     fim_parada: fimParada
@@ -433,6 +748,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             showToast('Parada registrada com sucesso!');
             stopModal.classList.add('hidden');
+            delete confirmStopBtn.dataset.agendamentoId; // Limpa o ID
 
         } catch (error) { 
             console.error(error); 
