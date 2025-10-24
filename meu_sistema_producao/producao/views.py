@@ -267,15 +267,32 @@ def get_dados_maquina_api(request):
     """
     maquina_id = request.GET.get('maquina_id')
     hoje = date.today() 
+    
+    # =======================================================================
+    # CORREÇÃO APLICADA AQUI
+    # =======================================================================
 
-    agendamentos_hoje = Agendamento.objects.filter(
+    # 1. BUSCA OPs EM PRODUÇÃO:
+    #    Filtra apenas pela máquina e pelo status, IGNORANDO a data.
+    #    A OP só sairá daqui quando o status for 'Concluída'.
+    ops_em_producao_ag = Agendamento.objects.filter(
         maquina_id=maquina_id,
-        start_datetime__date=hoje
+        ordem_producao__status='Em Produção'
     ).select_related('ordem_producao__pn').order_by('start_datetime')
 
-    # [MODIFICADO] Busca LISTAS, não mais .first()
-    ops_em_producao_ag = agendamentos_hoje.filter(ordem_producao__status='Em Produção')
-    proximas_ops_ag = agendamentos_hoje.filter(ordem_producao__status='Planejada')
+    # 2. BUSCA PRÓXIMAS OPs:
+    #    Filtra pela máquina, status 'Planejada' e data A PARTIR DE HOJE.
+    #    Usar '__gte=hoje' (maior ou igual) garante que OPs planejadas
+    #    para hoje ou dias futuros sejam listadas.
+    proximas_ops_ag = Agendamento.objects.filter(
+        maquina_id=maquina_id,
+        ordem_producao__status='Planejada',
+        start_datetime__date__gte=hoje 
+    ).select_related('ordem_producao__pn').order_by('start_datetime')
+
+    # =======================================================================
+    # FIM DA CORREÇÃO
+    # =======================================================================
 
     def formatar_op(agendamento):
         if not agendamento:
@@ -290,7 +307,7 @@ def get_dados_maquina_api(request):
         return {
             'agendamento_id': agendamento.id,
             'op_id': op.id,
-            'lado': agendamento.lado, # <-- [NOVO] Campo 'lado' é essencial
+            'lado': agendamento.lado, 
             'pn_code': pn.pn_code,
             'description': pn.description,
             'capacity_liters': pn.capacity_liters,
@@ -304,7 +321,7 @@ def get_dados_maquina_api(request):
             'inicio_agendado': inicio_formatado
         }
 
-    # [MODIFICADO] Retorna listas no formato que o JavaScript vai esperar
+    # Esta parte já estava correta, pois o JS espera listas
     dados = {
         'ops_em_producao': [formatar_op(ag) for ag in ops_em_producao_ag],
         'proximas_ops': [formatar_op(ag) for ag in proximas_ops_ag]
