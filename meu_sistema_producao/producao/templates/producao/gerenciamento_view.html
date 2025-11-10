@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}PROPLAN SG{% endblock %}
+
+{% block styles %}
+<style>
+    /* Animação de pulso para o status "Produzindo" */
+    @keyframes pulse-green {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    .pulse-live {
+        animation: pulse-green 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-6 lg:p-10">
+
+    <!-- Header (Tema Escuro) -->
+    <header class="bg-gray-800 rounded-xl shadow-2xl p-6 mb-6 border border-gray-700 flex justify-between items-center">
+        <div>
+            <h1 class="text-4xl font-bold text-blue-400">Dashboard de Gerenciamento</h1>
+            <p class="text-gray-400 text-lg">Visão em tempo real do chão de fábrica.</p>
+        </div>
+        <a href="{% url 'menu' %}" 
+            class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
+            <i class="fas fa-home"></i> 
+            <span>Voltar ao Menu</span>
+        </a>
+    </header>
+
+    <!-- Container do Grid de Máquinas -->
+    <main id="machine-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+
+        {% for maquina in maquinas_com_kpi %}
+            
+            <!-- 
+                =======================================================================
+                INÍCIO DA LÓGICA DE STATUS (ATIVA vs INATIVA)
+                =======================================================================
+            -->
+
+            {% if maquina.status == 'Ativa' %}
+                
+                <!-- =================== CARD MÁQUINA ATIVA =================== -->
+                <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-6 transition-all hover:shadow-xl hover:-translate-y-1 
+                    flex flex-col items-center text-center
+                    {% if maquina.oee < 50 %}
+                        border-l-8 border-red-500
+                    {% elif maquina.oee <= 85 %}
+                        border-l-8 border-yellow-500
+                    {% else %}
+                        border-l-8 border-green-500
+                    {% endif %}
+                ">
+                    
+                    <!-- 1. Ícone da Máquina (Ativo) -->
+                    <!-- (Você pode trocar o ícone aqui se desejar) -->
+                    <i class="fas fa-industry text-6xl text-blue-400 mb-4"></i>
+
+                    <!-- 2. Nome da Máquina e Status (Ativo) -->
+                    <h2 class="text-xl font-semibold text-gray-100 truncate" title="{{ maquina.nome }}">
+                        {{ maquina.nome }}
+                    </h2>
+                    <span class="flex items-center gap-2 px-3 py-1 bg-green-900 bg-opacity-50 text-green-400 rounded-full text-sm font-medium mb-5">
+                        <span class="w-3 h-3 bg-green-500 rounded-full pulse-live"></span>
+                        Produzindo
+                    </span>
+
+                    <!-- 3. Lista de KPIs (Ativo) -->
+                    <div class="space-y-4 w-full">
+                        
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-sm font-medium text-gray-400">Performance</span>
+                            <span class="text-2xl font-bold {% if maquina.eficiencia >= 90 %}text-green-400{% else %}text-yellow-400{% endif %}">
+                                {{ maquina.eficiencia|floatformat:1 }}<span class="text-lg">%</span>
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-sm font-medium text-gray-400">Disponibilidade</span>
+                            <span class="text-2xl font-bold {% if maquina.disponibilidade >= 95 %}text-green-400{% else %}text-yellow-400{% endif %}">
+                                {{ maquina.disponibilidade|floatformat:1 }}<span class="text-lg">%</span>
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-sm font-medium text-gray-400">Qualidade</span> <!-- Rótulo alterado -->
+                            <!-- Lógica de cor e variável alteradas -->
+                            <span class="text-2xl font-bold {% if maquina.qualidade >= 95 %}text-green-400{% else %}text-red-400{% endif %}">
+                                {{ maquina.qualidade|floatformat:1 }}<span class="text-lg">%</span>
+                            </span>
+                        </div>
+                        <hr class="border-gray-700">
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-sm font-bold text-gray-200">OEE</span>
+                            <span class="text-3xl font-bold text-white">
+                                {{ maquina.oee|floatformat:1 }}<span class="text-lg">%</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            
+            {% else %}
+
+                <!-- =================== CARD MÁQUINA INATIVA =================== -->
+                <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-6 
+                    flex flex-col items-center text-center 
+                    opacity-60 grayscale"> <!-- <-- CLASSES DE DESATIVAÇÃO -->
+                    
+                    <!-- 1. Ícone da Máquina (Inativo) -->
+                    <i class="fas fa-industry text-6xl text-gray-600 mb-4"></i>
+
+                    <!-- 2. Nome da Máquina e Status (Inativo) -->
+                    <h2 class="text-xl font-semibold text-gray-400 truncate" title="{{ maquina.nome }}">
+                        {{ maquina.nome }}
+                    </h2>
+                    <span class="flex items-center gap-2 px-3 py-1 bg-gray-700 text-gray-400 rounded-full text-sm font-medium mb-5">
+                        <span class="w-3 h-3 bg-gray-500 rounded-full"></span> <!-- Sem pulso -->
+                        Inativa
+                    </span>
+
+                    <!-- 3. Lista de KPIs (Inativo) -->
+                    <div class="space-y-4 w-full">
+                        
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-sm font-medium text-gray-500">Disponibilidade</span>
+                            <span class="text-2xl font-bold text-gray-500">
+                                --<span class="text-lg">%</span>
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-sm font-medium text-gray-500">Eficiência</span>
+                            <span class="text-2xl font-bold text-gray-500">
+                                --<span class="text-lg">%</span>
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-sm font-medium text-gray-500">Índice de Refugo</span>
+                            <span class="text-2xl font-bold text-gray-500">
+                                --<span class="text-lg">%</span>
+                            </span>
+                        </div>
+                        <hr class="border-gray-700">
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-sm font-bold text-gray-400">OEE</span>
+                            <span class="text-3xl font-bold text-gray-400">
+                                --<span class="text-lg">%</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+            {% endif %}
+            
+            <!-- 
+                =======================================================================
+                FIM DA LÓGICA DE STATUS
+                =======================================================================
+            -->
+
+        {% empty %}
+            <!-- Card de "Nenhuma máquina" -->
+            <div class="col-span-1 md:col-span-2 lg:col-span-4 bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-10 text-center">
+                <h3 class="text-xl font-semibold text-gray-300">Nenhuma máquina cadastrada no sistema.</h3>
+                <p class="text-gray-500">Cadastre máquinas no painel de administração para exibi-las aqui.</p>
+            </div>
+        {% endfor %}
+
+    </main>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Lógica de auto-refresh (comentada)
+    /*
+    const REFRESH_INTERVAL = 30000; // 30 segundos
+    async function refreshData() {
+        try {
+            const response = await fetch("{# {% url 'get_gerenciamento_data_api' %} #}"); // URL de exemplo
+            if (!response.ok) throw new Error('Falha ao buscar dados');
+            const maquinas = await response.json();
+            renderizarGrid(maquinas); 
+        } catch (error) {
+            console.error("Erro ao atualizar dashboard:", error);
+        }
+    }
+    function renderizarGrid(maquinas) {
+        const gridContainer = document.getElementById('machine-grid');
+        gridContainer.innerHTML = ''; 
+        // ... (lógica para criar os cards com base nos dados do JSON) ...
+    }
+    // setInterval(refreshData, REFRESH_INTERVAL);
+    */
+});
+</script>
+{% endblock %}

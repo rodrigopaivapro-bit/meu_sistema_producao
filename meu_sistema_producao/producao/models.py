@@ -27,6 +27,7 @@ class Pn(models.Model):
         permissions = [
             ('can_view_planejamento', 'Pode visualizar a página de planejamento'),
             ("can_view_producao", "Pode visualizar a tela de produção"),
+            ("can_view_gerenciamento", "Pode visualizar a tela de gerenciamento"),
         ]
         verbose_name = 'PN'
         verbose_name_plural = 'Part Numbers'
@@ -55,17 +56,13 @@ class OrdemProducao(models.Model):
     pn = models.ForeignKey(Pn, on_delete=models.CASCADE, verbose_name="PN")
     quantity = models.IntegerField(verbose_name="Quantidade")
     delivery_date = models.DateField(verbose_name="Data de Entrega")
+    quantidade_produzida = models.IntegerField(default=0, verbose_name="Quantidade Produzida")
     STATUS_CHOICES = [
         ('Disponível', 'Disponível'),
         ('Planejada', 'Planejada'),
         ('Em Produção', 'Em Produção'),
         ('Concluída', 'Concluída'),
     ]
-
-    pn = models.ForeignKey(Pn, on_delete=models.CASCADE, verbose_name="PN")
-    quantity = models.IntegerField(verbose_name="Quantidade")
-    delivery_date = models.DateField(verbose_name="Data de Entrega")
-    quantidade_produzida = models.IntegerField(default=0, verbose_name="Quantidade Produzida")
     
     # =======================================================================
     # NOVO CAMPO ADICIONADO AQUI
@@ -106,6 +103,11 @@ class Agendamento(models.Model):
     maquina = models.ForeignKey(Maquina, on_delete=models.CASCADE, verbose_name="Máquina")
     start_datetime = models.DateTimeField(verbose_name="Início do Agendamento")
     end_datetime = models.DateTimeField(verbose_name="Fim do Agendamento")
+    real_start_datetime = models.DateTimeField(
+        verbose_name="Início Real da Produção", 
+        null=True,  # Permite que o valor seja NULO no banco (para OPs antigas ou não iniciadas)
+        blank=True  # Permite que o campo seja vazio no Django Admin
+    )
     LADO_CHOICES = (
         ('L', 'Esquerdo'),
         ('R', 'Direito'),

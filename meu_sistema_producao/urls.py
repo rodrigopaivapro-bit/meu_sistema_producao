@@ -27,4 +27,5 @@ urlpatterns = [
     path('api/producao/get_tipos_parada/', views.get_tipos_parada_api, name='get_tipos_parada_api'),
     path('api/get_tipos_refugo/', views.get_tipos_refugo_api, name='get_tipos_refugo_api'),
     path('api/registrar_refugo/', views.registrar_refugo_api, name='registrar_refugo_api'),
+    path('gerenciamento/', views.gerenciamento_view, name='gerenciamento_view'),
 ]

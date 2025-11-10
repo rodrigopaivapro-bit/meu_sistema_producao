@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from .models import Pn, Maquina, OrdemProducao, Agendamento, ApontamentoProducao, Parada, TipoParada, TipoRefugo, Refugo
 from datetime import date
+from django.db.models import Sum, F, ExpressionWrapper, fields
+from django.db.models.functions import Coalesce
 
 
 @login_required(login_url='login')
@@ -104,7 +106,8 @@ def salvar_agendamento_api(request):
                 'maquina': maquina,
                 'start_datetime': start_datetime,
                 'end_datetime': end_datetime,
-                'lado': lado_recebido
+                'lado': lado_recebido,
+                'real_start_datetime': None
             }
         )
         
@@ -151,6 +154,8 @@ def remover_agendamento_api(request):
         # =======================================================================
 
         # Agora, remove o agendamento
+        agendamento.real_start_datetime = None
+        agendamento.save()
         agendamento.delete()
         
         return JsonResponse({'status': 'sucesso', 'mensagem': 'Agendamento removido com sucesso!'})
@@ -328,30 +333,43 @@ def get_dados_maquina_api(request):
     }
     return JsonResponse(dados)
 
+@require_POST # Adicionado decorador de segurança
 @login_required
 def iniciar_op_api(request):
     try:
         data = json.loads(request.body)
-        # [MODIFICADO] Recebe 'maquina_id' em vez de 'op_id'
         maquina_id = data.get('maquina_id')
         if not maquina_id:
             return JsonResponse({'status': 'erro', 'mensagem': 'ID da máquina não fornecido.'}, status=400)
 
-        hoje = date.today()
-
-        # 1. Encontra todos os agendamentos "Planejados" para hoje nesta máquina
+        # 1. Encontra todos os agendamentos "Planejados" para esta máquina
+        #    (Removido o filtro de 'start_datetime__date=hoje' que causava o bug)
         agendamentos_para_iniciar = Agendamento.objects.filter(
             maquina_id=maquina_id,
-            start_datetime__date=hoje,
             ordem_producao__status='Planejada'
         )
         
         if not agendamentos_para_iniciar.exists():
-            return JsonResponse({'status': 'erro', 'mensagem': 'Nenhuma OP planejada encontrada para iniciar.'}, status=404)
+            # Retorna 404 (Não Encontrado) para o frontend detectar o erro
+            return JsonResponse({'status': 'info', 'mensagem': 'Nenhuma OP "Planejada" encontrada para esta máquina.'}, status=404)
 
-        # 2. Atualiza o status de todas as OPs encontradas de uma só vez
+        # =======================================================================
+        # CORREÇÃO DE LÓGICA (INVERTER ORDEM)
+        # =======================================================================
+
+        # 1. PRIMEIRO, grava o 'real_start_datetime'
+        #    (Enquanto o status ainda é 'Planejada' e a query funciona)
+        agendamentos_para_iniciar.filter(real_start_datetime__isnull=True).update(
+            real_start_datetime=timezone.now()
+        )
+        
+        # 2. SEGUNDO, atualiza o status das OPs
         op_ids_para_iniciar = agendamentos_para_iniciar.values_list('ordem_producao_id', flat=True)
         OrdemProducao.objects.filter(id__in=op_ids_para_iniciar).update(status='Em Produção')
+        
+        # =======================================================================
+        # FIM DA CORREÇÃO DE LÓGICA
+        # =======================================================================
 
         return JsonResponse({'status': 'sucesso', 'mensagem': 'OPs iniciadas com sucesso!'})
         
@@ -489,3 +507,155 @@ def registrar_refugo_api(request):
         # Logar o erro aqui seria uma boa prática
         print(f"Erro ao registrar refugo: {e}") 
         return JsonResponse({'status': 'erro', 'mensagem': 'Erro interno ao registrar refugo.'}, status=500)
+
+@login_required(login_url='login')
+@permission_required('producao.can_view_gerenciamento', raise_exception=True)
+def gerenciamento_view(request):
+    """
+    MODIFICADO (Passo 2):
+    Exibe o dashboard com lógica de OEE corrigida (Peças Brutas) e
+    usa o 'real_start_datetime' para o cálculo de Eficiência.
+    """
+    
+    # Busca IDs de máquinas com OPs "Em Produção"
+    maquinas_ativas_set = set(Agendamento.objects.filter(
+        ordem_producao__status='Em Produção'
+    ).values_list('maquina_id', flat=True).distinct())
+
+    # Busca TODAS as máquinas
+    maquinas = Maquina.objects.all()
+    maquinas_com_kpi = []
+    agora = timezone.now()
+
+    for maquina in maquinas:
+        
+        if maquina.id in maquinas_ativas_set:
+            # --- MÁQUINA ATIVA ---
+            
+            # Pega os agendamentos desta máquina que estão "Em Produção"
+            agendamentos_da_maquina = Agendamento.objects.filter(
+                maquina=maquina,
+                ordem_producao__status='Em Produção'
+            ).select_related('ordem_producao__pn')
+
+            # Variáveis para acumular os totais da MÁQUINA
+            total_pecas_boas = 0
+            total_pecas_ruins = 0
+            total_produzido_bruto = 0
+            total_pecas_teoricas = 0 # Denominador da Eficiência
+
+            for ag in agendamentos_da_maquina:
+                op = ag.ordem_producao
+                pn = op.pn
+
+                # --- 1. LÓGICA DE DEFINIÇÃO DE PEÇAS (CORRIGIDA) ---
+                
+                # Peças Boas = Total de apontamentos de produção
+                pecas_boas_ag = op.quantidade_produzida
+                
+                # Peças Ruins = Total de apontamentos de refugo
+                refugo_do_ag = Refugo.objects.filter(agendamento=ag).aggregate(
+                    total=Coalesce(Sum('quantidade'), 0)
+                )['total']
+                pecas_ruins_ag = refugo_do_ag
+
+                # Acumula totais
+                total_pecas_boas += pecas_boas_ag
+                total_pecas_ruins += pecas_ruins_ag
+                
+                # Peças Brutas = Soma das boas + ruins
+                total_produzido_bruto += (pecas_boas_ag + pecas_ruins_ag)
+
+                # --- 2. EFICIÊNCIA (Cálculo do Denominador - PEÇAS TEÓRICAS) ---
+                
+                # [MODIFICADO] Usa o tempo de início REAL
+                inicio_real_da_op = ag.real_start_datetime 
+                
+                # Se a OP não foi iniciada (não tem data real) ou se o PN não tem ciclo,
+                # não podemos calcular a eficiência para este agendamento.
+                if not inicio_real_da_op or not pn.cycle_time_seconds or pn.cycle_time_seconds <= 0:
+                    continue
+
+                ciclo_teorico_segundos = pn.cycle_time_seconds
+
+                # 2. Calcular o "Tempo Medido" (desde o início real até agora)
+                duracao_bruta = agora - inicio_real_da_op
+                tempo_total_bruto_segundos = duracao_bruta.total_seconds()
+                if tempo_total_bruto_segundos < 0:
+                    tempo_total_bruto_segundos = 0
+
+                # 3. Calcular o "Tempo Parado" (soma das paradas registradas)
+                duracao_parada_expr = ExpressionWrapper(
+                    F('fim_parada') - F('inicio_parada'), 
+                    output_field=fields.DurationField()
+                )
+                soma_paradas = Parada.objects.filter(
+                    agendamento=ag, 
+                    fim_parada__isnull=False # Apenas paradas concluídas
+                ).aggregate(
+                    total=Coalesce(Sum(duracao_parada_expr), timedelta(seconds=0))
+                )
+                tempo_parado_segundos = soma_paradas['total'].total_seconds()
+
+                # 4. Calcular o "Tempo Operacional" (Tempo Medido - Tempo Parado)
+                tempo_produzindo_segundos = tempo_total_bruto_segundos - tempo_parado_segundos
+                if tempo_produzindo_segundos < 0:
+                    tempo_produzindo_segundos = 0
+
+                # 5. Calcular o Denominador (Qtd Teórica = Tempo Operacional / Ciclo Teórico)
+                qtd_deveria_produzir_ag = tempo_produzindo_segundos / ciclo_teorico_segundos
+                
+                total_pecas_teoricas += qtd_deveria_produzir_ag
+
+            # --- FIM DO LOOP DE AGENDAMENTOS DA MÁQUINA ---
+
+            # --- CÁLCULO FINAL DOS KPIs DA MÁQUINA (CORRIGIDO) ---
+            
+            # A. QUALIDADE (Corrigida)
+            # (Peças Boas / Peças Brutas)
+            if total_produzido_bruto > 0:
+                qualidade = (total_pecas_boas / total_produzido_bruto) * 100
+            else:
+                qualidade = 100.0 # Se não fez nada (bruto=0), qualidade é 100%
+
+            # B. EFICIÊNCIA (Corrigida)
+            # (Peças Brutas / Peças Teóricas)
+            if total_pecas_teoricas > 0:
+                eficiencia = (total_produzido_bruto / total_pecas_teoricas) * 100
+            else:
+                # Se o tempo foi 0 (ou ciclo 0), não deveria produzir nada.
+                # Se produziu 0 (bruto=0), eficiência 100%. Se produziu >0, eficiência >100%.
+                eficiencia = 100.0 if total_produzido_bruto == 0 else 200.0 # Define um teto ou 100%
+            
+            # C. DISPONIBILIDADE (Placeholder)
+            # TODO: Substituir pela fórmula real quando definida.
+            disponibilidade = 95.0 # Mantido fixo, conforme solicitado.
+            
+            # D. OEE
+            oee = (disponibilidade / 100) * (eficiencia / 100) * (qualidade / 100) * 100
+            
+            maquinas_com_kpi.append({
+                'status': 'Ativa',
+                'nome': maquina.number,
+                'oee': oee,
+                'disponibilidade': disponibilidade,
+                'eficiencia': eficiencia,
+                'qualidade': qualidade,
+            })
+            
+        else:
+            # --- MÁQUINA INATIVA ---
+            maquinas_com_kpi.append({
+                'status': 'Inativa',
+                'nome': maquina.number,
+                'oee': 0.0,
+                'disponibilidade': 0.0,
+                'eficiencia': 0.0,
+                'qualidade': 0.0,
+            })
+        
+    context = {
+        'maquinas_com_kpi': maquinas_com_kpi
+    }
+    
+    return render(request, 'producao/gerenciamento_view.html', context)
