@@ -145,6 +145,13 @@
                              data-pn-capacidade="{{ op_data.op.pn.capacity_liters }}"
                              data-duration="{{ op_data.tempo_producao_horas }}"
                              style="height: {{ op_data.altura_card|floatformat:"0" }}px;">
+                             <button class="edit-op-btn absolute top-2 right-2 p-1 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition"
+                                    data-op-id="{{ op_data.op.id }}"
+                                    title="Editar OP-{{ op_data.op.id }}">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828zM5 12V7.172l-2.414 2.414a2 2 0 000 2.828L5 14.828V12zM3 17h14v-2H3v2z"></path>
+                                </svg>
+                             </button>
                             <div class="font-semibold text-blue-800 text-lg">OP-{{ op_data.op.id }}</div>
                             <div class="text-sm text-blue-600">{{ op_data.op.pn.pn_code }} - {{ op_data.op.quantity }} und.</div>
                             <div class="text-xs text-blue-500 mt-1">Prazo: {{ op_data.op.delivery_date|date:"d/m/Y" }}</div>
@@ -183,7 +190,7 @@
         </div>
     </div>
 
-    <div id="newOrderModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div id="newOrderModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50" data-editing-op-id="">
         <div class="bg-gray-800 rounded-xl p-6 w-96 border border-gray-700">
             <h3 class="text-xl font-bold text-blue-400 mb-4">Nova Ordem de Produção</h3>
             
@@ -250,6 +257,7 @@
             const openModalBtn = document.getElementById('openNewOrderModal');
             const closeModalBtn = document.getElementById('closeModalBtn');
             const createOrderBtn = document.getElementById('createOrderBtn');
+            const modalTitle = document.getElementById('modalTitle');
             const pnSelect = document.getElementById('newOrderPn');
             const quantityInput = document.getElementById('newOrderQuantity');
             const deadlineInput = document.getElementById('newOrderDeadline');
@@ -287,7 +295,7 @@
             // ===================================================================
             // FUNÇÕES PRINCIPAIS (Semana, Grade, Renderização, Drag&Drop)
             // ===================================================================
-    
+            
             function showToast(message) {
                 const toast = document.createElement('div');
                 toast.className = 'toast-notification';

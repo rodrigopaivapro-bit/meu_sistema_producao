@@ -139,6 +139,19 @@ class ApontamentoProducao(models.Model):
 class TipoParada(models.Model):
     codigo = models.CharField(max_length=20, unique=True, verbose_name="Código da Parada")
     descricao = models.CharField(max_length=255, verbose_name="Descrição")
+    CLASSIFICACAO_CHOICES = [
+        ('PLANEJADA', 'Planejada (Não conta no OEE)'),
+        ('NÃO PLANEJADA', 'Não Planejada (Perda de Disponibilidade)'),
+    ]
+    
+    classificacao_parada = models.CharField(
+        max_length=20,
+        choices=CLASSIFICACAO_CHOICES,
+        verbose_name="Classificação OEE",
+        help_text="Classifique se esta parada é uma perda (Não Planejada) ou parte da rotina (Planejada).",
+        null=True,  # Permite nulo para registros existentes
+        blank=True  # Permite salvar em branco no admin
+    )
 
     def __str__(self):
         return f"{self.codigo} - {self.descricao}"

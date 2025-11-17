@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from .models import Pn, Maquina, OrdemProducao, Agendamento, ApontamentoProducao, Parada, TipoParada, TipoRefugo, Refugo
 from datetime import date
-from django.db.models import Sum, F, ExpressionWrapper, fields
+from django.db.models import Sum, F, ExpressionWrapper, fields, Case, When, Value
 from django.db.models.functions import Coalesce
 
 
@@ -173,37 +173,73 @@ def get_pns_api(request):
     pns = Pn.objects.all().values('id', 'pn_code', 'capacity_liters')
     return JsonResponse(list(pns), safe=False)
 
+@login_required(login_url='login')
+@require_http_methods(["GET"])
+def get_op_details_api(request):
+    """Busca os dados de uma OP específica para preencher o modal de edição."""
+    try:
+        op_id = request.GET.get('op_id')
+        if not op_id:
+            return JsonResponse({'status': 'erro', 'mensagem': 'ID da OP não fornecido.'}, status=400)
+        
+        op = get_object_or_404(OrdemProducao, id=op_id)
+        
+        data = {
+            'pn_id': op.pn_id,
+            'quantity': op.quantity,
+            # Formata a data para YYYY-MM-DD (compatível com input[type=date])
+            'delivery_date': op.delivery_date.strftime('%Y-%m-%d') 
+        }
+        return JsonResponse({'status': 'sucesso', 'data': data})
+
+    except OrdemProducao.DoesNotExist:
+        return JsonResponse({'status': 'erro', 'mensagem': 'OP não encontrada.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'status': 'erro', 'mensagem': str(e)}, status=500)
+
 
 @require_POST
 def criar_op_api(request):
-    # =========================================================================
-    # CORREÇÃO: Verificação de login e permissão feita manualmente para a API
-    # =========================================================================
     if not request.user.is_authenticated:
         return JsonResponse({'status': 'erro', 'mensagem': 'Autenticação necessária.'}, status=401)
     
-    if not request.user.has_perm('producao.add_ordemproducao'):
-        return JsonResponse({'status': 'erro', 'mensagem': 'Você não tem permissão para criar uma OP.'}, status=403)
-    # =========================================================================
+    if not request.user.has_perm('producao.add_ordemproducao'): # (Mantém a permissão de 'add' para criar/editar)
+        return JsonResponse({'status': 'erro', 'mensagem': 'Você não tem permissão para criar ou editar OPs.'}, status=403)
 
     try:
         data = json.loads(request.body)
         pn_id = data.get('pn_id')
         quantity = data.get('quantity')
         delivery_date = data.get('delivery_date')
+        
+        # CAMPO NOVO: Verifica se estamos editando uma OP existente
+        op_id_para_editar = data.get('op_id_para_editar') 
 
         if not all([pn_id, quantity, delivery_date]):
             return JsonResponse({'status': 'erro', 'mensagem': 'Todos os campos são obrigatórios.'}, status=400)
 
         pn = Pn.objects.get(id=pn_id)
         
-        nova_op = OrdemProducao.objects.create(
-            pn=pn,
-            quantity=int(quantity),
-            delivery_date=delivery_date,
-            status='Disponível'
-        )
-        return JsonResponse({'status': 'sucesso', 'mensagem': f'OP {nova_op.id} criada com sucesso!'})
+        if op_id_para_editar:
+            # --- LÓGICA DE ATUALIZAÇÃO (EDITAR) ---
+            op = get_object_or_404(OrdemProducao, id=op_id_para_editar)
+            op.pn = pn
+            op.quantity = int(quantity)
+            op.delivery_date = delivery_date
+            op.save()
+            mensagem = f'OP {op.id} atualizada com sucesso!'
+        
+        else:
+            # --- LÓGICA DE CRIAÇÃO (EXISTENTE) ---
+            nova_op = OrdemProducao.objects.create(
+                pn=pn,
+                quantity=int(quantity),
+                delivery_date=delivery_date,
+                status='Disponível'
+            )
+            mensagem = f'OP {nova_op.id} criada com sucesso!'
+
+        return JsonResponse({'status': 'sucesso', 'mensagem': mensagem})
 
     except Pn.DoesNotExist:
         return JsonResponse({'status': 'erro', 'mensagem': 'O Produto (PN) selecionado não existe.'}, status=404)
@@ -251,7 +287,6 @@ def get_week_data_api(request):
 # =======================================================================
 
 @login_required(login_url='login')
-# Protege a view com uma nova permissão que você precisa criar
 @permission_required('producao.can_view_producao', raise_exception=True) 
 def view_producao(request):
     """Renderiza a página principal de produção para o operador."""
@@ -511,18 +546,11 @@ def registrar_refugo_api(request):
 @login_required(login_url='login')
 @permission_required('producao.can_view_gerenciamento', raise_exception=True)
 def gerenciamento_view(request):
-    """
-    MODIFICADO (Passo 2):
-    Exibe o dashboard com lógica de OEE corrigida (Peças Brutas) e
-    usa o 'real_start_datetime' para o cálculo de Eficiência.
-    """
     
-    # Busca IDs de máquinas com OPs "Em Produção"
     maquinas_ativas_set = set(Agendamento.objects.filter(
         ordem_producao__status='Em Produção'
     ).values_list('maquina_id', flat=True).distinct())
 
-    # Busca TODAS as máquinas
     maquinas = Maquina.objects.all()
     maquinas_com_kpi = []
     agora = timezone.now()
@@ -532,104 +560,144 @@ def gerenciamento_view(request):
         if maquina.id in maquinas_ativas_set:
             # --- MÁQUINA ATIVA ---
             
-            # Pega os agendamentos desta máquina que estão "Em Produção"
             agendamentos_da_maquina = Agendamento.objects.filter(
                 maquina=maquina,
                 ordem_producao__status='Em Produção'
             ).select_related('ordem_producao__pn')
 
-            # Variáveis para acumular os totais da MÁQUINA
+            # --- VARIÁVEIS DE ACUMULAÇÃO PARA A MÁQUINA ---
             total_pecas_boas = 0
             total_pecas_ruins = 0
             total_produzido_bruto = 0
             total_pecas_teoricas = 0 # Denominador da Eficiência
 
+            # ===================================================================
+            # NOVAS VARIÁVEIS PARA DISPONIBILIDADE
+            # ===================================================================
+            total_tempo_bruto_maquina_segundos = 0
+            total_paradas_planejadas_maquina_segundos = 0
+            total_paradas_nao_planejadas_maquina_segundos = 0
+            # ===================================================================
+
             for ag in agendamentos_da_maquina:
                 op = ag.ordem_producao
                 pn = op.pn
 
-                # --- 1. LÓGICA DE DEFINIÇÃO DE PEÇAS (CORRIGIDA) ---
-                
-                # Peças Boas = Total de apontamentos de produção
+                # --- 1. LÓGICA DE QUALIDADE (Peças) ---
                 pecas_boas_ag = op.quantidade_produzida
-                
-                # Peças Ruins = Total de apontamentos de refugo
                 refugo_do_ag = Refugo.objects.filter(agendamento=ag).aggregate(
                     total=Coalesce(Sum('quantidade'), 0)
                 )['total']
                 pecas_ruins_ag = refugo_do_ag
 
-                # Acumula totais
                 total_pecas_boas += pecas_boas_ag
                 total_pecas_ruins += pecas_ruins_ag
-                
-                # Peças Brutas = Soma das boas + ruins
                 total_produzido_bruto += (pecas_boas_ag + pecas_ruins_ag)
 
-                # --- 2. EFICIÊNCIA (Cálculo do Denominador - PEÇAS TEÓRICAS) ---
+                # --- 2. LÓGICA DE TEMPO (Base para Disponibilidade e Eficiência) ---
                 
-                # [MODIFICADO] Usa o tempo de início REAL
                 inicio_real_da_op = ag.real_start_datetime 
                 
-                # Se a OP não foi iniciada (não tem data real) ou se o PN não tem ciclo,
-                # não podemos calcular a eficiência para este agendamento.
                 if not inicio_real_da_op or not pn.cycle_time_seconds or pn.cycle_time_seconds <= 0:
-                    continue
+                    continue # Pula se não iniciou ou não tem ciclo
 
                 ciclo_teorico_segundos = pn.cycle_time_seconds
 
-                # 2. Calcular o "Tempo Medido" (desde o início real até agora)
+                # 2.1. Tempo Bruto Medido (desde o início real)
                 duracao_bruta = agora - inicio_real_da_op
                 tempo_total_bruto_segundos = duracao_bruta.total_seconds()
                 if tempo_total_bruto_segundos < 0:
                     tempo_total_bruto_segundos = 0
+                
+                # Acumula o tempo bruto total da máquina
+                total_tempo_bruto_maquina_segundos += tempo_total_bruto_segundos
 
-                # 3. Calcular o "Tempo Parado" (soma das paradas registradas)
+                # 2.2. Calcular Paradas (Classificadas)
+                # Esta query substitui a antiga 'soma_paradas'
                 duracao_parada_expr = ExpressionWrapper(
                     F('fim_parada') - F('inicio_parada'), 
                     output_field=fields.DurationField()
                 )
-                soma_paradas = Parada.objects.filter(
+                
+                somas_paradas_classificadas = Parada.objects.filter(
                     agendamento=ag, 
-                    fim_parada__isnull=False # Apenas paradas concluídas
+                    fim_parada__isnull=False,
+                    # Filtra paradas que ocorreram *dentro* do período medido
+                    inicio_parada__gte=inicio_real_da_op 
                 ).aggregate(
-                    total=Coalesce(Sum(duracao_parada_expr), timedelta(seconds=0))
+                    soma_planejadas=Coalesce(
+                        Sum(
+                            Case(
+                                When(tipo_parada__classificacao_parada='PLANEJADA', then=duracao_parada_expr),
+                                default=Value(timedelta(0)),
+                                output_field=fields.DurationField()
+                            )
+                        ),
+                        timedelta(0)
+                    ),
+                    soma_nao_planejadas=Coalesce(
+                        Sum(
+                            Case(
+                                When(tipo_parada__classificacao_parada='NÃO PLANEJADA', then=duracao_parada_expr),
+                                default=Value(timedelta(0)),
+                                output_field=fields.DurationField()
+                            )
+                        ),
+                        timedelta(0)
+                    )
                 )
-                tempo_parado_segundos = soma_paradas['total'].total_seconds()
 
-                # 4. Calcular o "Tempo Operacional" (Tempo Medido - Tempo Parado)
-                tempo_produzindo_segundos = tempo_total_bruto_segundos - tempo_parado_segundos
-                if tempo_produzindo_segundos < 0:
-                    tempo_produzindo_segundos = 0
+                tempo_parado_planejado_segundos = somas_paradas_classificadas['soma_planejadas'].total_seconds()
+                tempo_parado_nao_planejado_segundos = somas_paradas_classificadas['soma_nao_planejadas'].total_seconds()
 
-                # 5. Calcular o Denominador (Qtd Teórica = Tempo Operacional / Ciclo Teórico)
-                qtd_deveria_produzir_ag = tempo_produzindo_segundos / ciclo_teorico_segundos
+                # Acumula os tempos de parada da máquina
+                total_paradas_planejadas_maquina_segundos += tempo_parado_planejado_segundos
+                total_paradas_nao_planejadas_maquina_segundos += tempo_parado_nao_planejado_segundos
+
+                # --- 3. LÓGICA DE EFICIÊNCIA (Corrigida) ---
+                
+                # 3.1. TPP (Tempo Programado) deste agendamento
+                tpp_segundos_ag = tempo_total_bruto_segundos - tempo_parado_planejado_segundos
+                
+                # 3.2. TO (Tempo Operando) deste agendamento
+                tempo_operando_segundos_ag = tpp_segundos_ag - tempo_parado_nao_planejado_segundos
+                if tempo_operando_segundos_ag < 0:
+                    tempo_operando_segundos_ag = 0
+
+                # 3.3. Qtd Teórica = Tempo Operando / Ciclo Teórico
+                qtd_deveria_produzir_ag = tempo_operando_segundos_ag / ciclo_teorico_segundos
                 
                 total_pecas_teoricas += qtd_deveria_produzir_ag
 
             # --- FIM DO LOOP DE AGENDAMENTOS DA MÁQUINA ---
 
-            # --- CÁLCULO FINAL DOS KPIs DA MÁQUINA (CORRIGIDO) ---
+            # --- CÁLCULO FINAL DOS KPIs DA MÁQUINA ---
             
-            # A. QUALIDADE (Corrigida)
-            # (Peças Boas / Peças Brutas)
+            # A. QUALIDADE (Peças Boas / Peças Brutas)
             if total_produzido_bruto > 0:
                 qualidade = (total_pecas_boas / total_produzido_bruto) * 100
             else:
-                qualidade = 100.0 # Se não fez nada (bruto=0), qualidade é 100%
+                qualidade = 100.0
 
-            # B. EFICIÊNCIA (Corrigida)
-            # (Peças Brutas / Peças Teóricas)
+            # B. DISPONIBILIDADE (Tempo Operando / Tempo Programado)
+            # TPP Total = Tempo Bruto Total - Paradas Planejadas Totais
+            tpp_maquina_segundos = total_tempo_bruto_maquina_segundos - total_paradas_planejadas_maquina_segundos
+            
+            # TO Total = TPP Total - Paradas Não Planejadas Totais
+            tempo_operando_maquina_segundos = tpp_maquina_segundos - total_paradas_nao_planejadas_maquina_segundos
+
+            if tpp_maquina_segundos > 0:
+                disponibilidade = (tempo_operando_maquina_segundos / tpp_maquina_segundos) * 100
+            else:
+                # Se o TPP foi 0 (ex: máquina ligada e imediatamente parada para almoço)
+                disponibilidade = 100.0 if tempo_operando_maquina_segundos >= 0 else 0.0
+
+            # C. EFICIÊNCIA (Peças Brutas / Peças Teóricas)
             if total_pecas_teoricas > 0:
                 eficiencia = (total_produzido_bruto / total_pecas_teoricas) * 100
             else:
-                # Se o tempo foi 0 (ou ciclo 0), não deveria produzir nada.
-                # Se produziu 0 (bruto=0), eficiência 100%. Se produziu >0, eficiência >100%.
-                eficiencia = 100.0 if total_produzido_bruto == 0 else 200.0 # Define um teto ou 100%
-            
-            # C. DISPONIBILIDADE (Placeholder)
-            # TODO: Substituir pela fórmula real quando definida.
-            disponibilidade = 95.0 # Mantido fixo, conforme solicitado.
+                # Se o tempo operando foi 0, a meta era 0 peças.
+                eficiencia = 100.0 if total_produzido_bruto == 0 else 200.0 # (Produziu sem tempo)
             
             # D. OEE
             oee = (disponibilidade / 100) * (eficiencia / 100) * (qualidade / 100) * 100
@@ -638,8 +706,8 @@ def gerenciamento_view(request):
                 'status': 'Ativa',
                 'nome': maquina.number,
                 'oee': oee,
-                'disponibilidade': disponibilidade,
-                'eficiencia': eficiencia,
+                'disponibilidade': disponibilidade, # <-- SUBSTITUÍDO
+                'eficiencia': eficiencia,         # <-- CORRIGIDO
                 'qualidade': qualidade,
             })
             

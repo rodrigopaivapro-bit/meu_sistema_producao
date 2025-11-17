@@ -28,4 +28,5 @@ urlpatterns = [
     path('api/get_tipos_refugo/', views.get_tipos_refugo_api, name='get_tipos_refugo_api'),
     path('api/registrar_refugo/', views.registrar_refugo_api, name='registrar_refugo_api'),
     path('gerenciamento/', views.gerenciamento_view, name='gerenciamento_view'),
+    path('api/get_op_details/', views.get_op_details_api, name='get_op_details_api'),
 ]
